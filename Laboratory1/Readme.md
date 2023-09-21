@@ -99,4 +99,4 @@ ensuring that the service runs consistently across different environments.
 **Orchestration:** Kubernetes will manage the deployment, scaling, and 
 operation of the application containers across clusters of hosts.
 
-![img.png](img.png)
+![img_1.png](img_1.png)

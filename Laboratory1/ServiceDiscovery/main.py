@@ -3,6 +3,7 @@ from flask_limiter import Limiter
 from flask_caching import Cache
 import requests
 
+# Flask application with a simple in-memory cache.
 app = Flask(__name__)
 
 # Set up caching
@@ -16,8 +17,10 @@ services = {}
 # In-memory store for simple load balancing
 round_robin_store = {}
 
+
 def get_remote_address():
     return request.remote_addr
+
 
 @app.route('/register', methods=['POST'])
 @limiter.limit("5 per minute")
@@ -34,6 +37,7 @@ def register_service():
 
     return jsonify({"message": "Registered successfully"}), 200
 
+
 @app.route('/discover/<service>', methods=['GET'])
 @limiter.limit("10 per second")
 @cache.cached(timeout=50)
@@ -48,9 +52,15 @@ def discover_service(service):
     else:
         return jsonify({"error": f"Service {service} not found"}), 404
 
+
+# Too Many Requests
 @app.errorhandler(429)
 def ratelimit_error(e):
     return jsonify(error="ratelimit exceeded"), 429
+
+@app.route('/status', methods=['GET'])
+def status():
+    return jsonify({"status": "Service Discovery is up and running!"}), 200
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=6000)

@@ -42,6 +42,10 @@ def proxy(service, path):
     else:
         return jsonify({"error": f"Service {service} not found"}), 404
 
+@app.route('/status', methods=['GET'])
+def status():
+    return jsonify({"status": "API Gateway is up and running!"}), 200
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)

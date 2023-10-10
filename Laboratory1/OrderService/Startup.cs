@@ -1,3 +1,4 @@
+using AspNetCoreRateLimit;
 using Microsoft.EntityFrameworkCore;
 using OrderService.Context;
 using OrderService.Infrastructure;
@@ -27,7 +28,7 @@ public class Startup
         services.AddSwaggerGen();
         services.AddHealthChecks();
 
-        DependencyRegistrar.Register(services);
+        DependencyRegistrar.Register(services, Configuration);
     }
 
     public void Configure(WebApplication app)
@@ -42,6 +43,9 @@ public class Startup
         app.UseMiddleware<RequestTimeoutMiddleware>();
 
         app.MapHealthChecks("/health");
+        
+        //2 requests per second
+        app.UseIpRateLimiting();
 
         app.UseHttpsRedirection();
         app.UseAuthorization();

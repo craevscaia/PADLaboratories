@@ -7,9 +7,9 @@ namespace OrderService.Services;
 public class OrderService : IOrderService
 {
     private readonly IOrderRepository _orderRepository;
-    private readonly OrderProcessor _orderProcessor;
+    private readonly IOrderProcessor _orderProcessor;
 
-    public OrderService(IOrderRepository orderRepository, OrderProcessor orderProcessor)
+    public OrderService(IOrderRepository orderRepository, IOrderProcessor orderProcessor)
     {
         _orderRepository = orderRepository;
         _orderProcessor = orderProcessor;

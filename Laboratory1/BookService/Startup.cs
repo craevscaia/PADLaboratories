@@ -1,3 +1,4 @@
+using AspNetCoreRateLimit;
 using BookService.Context;
 using BookService.Infrastructure;
 using BookService.Middleware;
@@ -26,7 +27,7 @@ public class Startup
         services.AddSwaggerGen();
         services.AddHealthChecks();
 
-        DependencyRegistrar.Register(services);
+        DependencyRegistrar.Register(services, Configuration);
     }
 
     public void Configure(WebApplication app)
@@ -40,7 +41,8 @@ public class Startup
         app.UseMiddleware<RequestTimeoutMiddleware>();
 
         app.MapHealthChecks("/health");
-        
+        app.UseIpRateLimiting();
+
         app.UseHttpsRedirection();
         app.UseAuthorization();
         app.MapControllers();

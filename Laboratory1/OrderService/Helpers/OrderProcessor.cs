@@ -3,7 +3,7 @@ using OrderService.Entities;
 
 namespace OrderService.Helpers;
 
-public class OrderProcessor
+public class OrderProcessor : IOrderProcessor
 {
     private readonly HttpClient _httpClient;
 

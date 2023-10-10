@@ -1,0 +1,22 @@
+http:
+  routers:
+    api-gateway:
+      rule: "Host(`api-gateway.local`)"
+      service: api-gateway
+      entryPoints:
+        - web
+    service-discovery:
+      rule: "Host(`service-discovery.local`)"
+      service: service-discovery
+      entryPoints:
+        - web
+
+  services:
+    api-gateway:
+      loadBalancer:
+        servers:
+          - url: "http://host.docker.internal:5000"
+    service-discovery:
+      loadBalancer:
+        servers:
+          - url: "http://host.docker.internal:6000"

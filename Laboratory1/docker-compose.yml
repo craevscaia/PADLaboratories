@@ -1,0 +1,12 @@
+﻿services:
+  bookservice:
+    image: bookservice
+    build:
+      context: .
+      dockerfile: BookService/Dockerfile
+
+  orderservice:
+    image: orderservice
+    build:
+      context: .
+      dockerfile: OrderService/Dockerfile

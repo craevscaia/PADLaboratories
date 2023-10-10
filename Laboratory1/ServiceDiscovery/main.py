@@ -53,14 +53,17 @@ def discover_service(service):
         return jsonify({"error": f"Service {service} not found"}), 404
 
 
-# Too Many Requests
-@app.errorhandler(429)
-def ratelimit_error(e):
-    return jsonify(error="ratelimit exceeded"), 429
-
 @app.route('/status', methods=['GET'])
 def status():
     return jsonify({"status": "Service Discovery is up and running!"}), 200
+
+# Too Many Requests
+@app.errorhandler(429)
+def ratelimit_error(e):
+    # This is where you'd integrate with an alerting system to notify of the high load.
+    print("ALERT: Critical load reached!")
+    return jsonify(error="ratelimit exceeded"), 429
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=6000)

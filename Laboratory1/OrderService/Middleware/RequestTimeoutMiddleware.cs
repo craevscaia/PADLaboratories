@@ -1,3 +1,6 @@
+using System.Net;
+using System.Text.Json;
+
 namespace OrderService.Middleware;
 
 public class RequestTimeoutMiddleware
@@ -14,23 +17,19 @@ public class RequestTimeoutMiddleware
     public async Task InvokeAsync(HttpContext context)
     {
         using var cts = new CancellationTokenSource(_timeout);
-        var originalToken = context.RequestAborted;
+        var originalCts = context.RequestAborted;
         context.RequestAborted = cts.Token;
 
         try
         {
             await _next(context);
         }
-        catch (OperationCanceledException) when (cts.IsCancellationRequested)
+        catch (OperationCanceledException) when (!originalCts.IsCancellationRequested)
         {
-            // Log the timeout event here if needed
-            context.Response.StatusCode = 408; // Request Timeout
-            await context.Response.WriteAsync("Request timed out.");
-        }
-        finally
-        {
-            cts.Dispose();
-            context.RequestAborted = originalToken;
+            context.Response.StatusCode = (int)HttpStatusCode.RequestTimeout;
+            var timeoutResponse = new { error = "Request timed out" };
+            var jsonResponse = JsonSerializer.Serialize(timeoutResponse);
+            await context.Response.WriteAsync(jsonResponse);
         }
     }
 }

@@ -14,7 +14,7 @@ public class RequestTimeoutMiddleware
         _timeout = TimeSpan.FromSeconds(configuration.GetValue<int>("RequestTimeoutSettings:TimeoutInSeconds"));
     }
 
-    public async Task InvokeAsync(HttpContext context)
+    public async Task InvokeAsync(HttpContext context) // middleware processes a request
     {
         using var cts = new CancellationTokenSource(_timeout);
         var originalCts = context.RequestAborted;

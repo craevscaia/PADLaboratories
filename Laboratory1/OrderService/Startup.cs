@@ -45,7 +45,7 @@ public class Startup
         app.MapHealthChecks("/health");
         
         //2 requests per second
-        app.UseIpRateLimiting();
+        app.UseIpRateLimiting(); // concurrency task limit
 
         app.UseHttpsRedirection();
         app.UseAuthorization();

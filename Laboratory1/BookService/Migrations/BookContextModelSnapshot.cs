@@ -7,7 +7,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace BookService.Migrations.BookMigrations
+namespace BookService.Migrations
 {
     [DbContext(typeof(BookContext))]
     partial class BookContextModelSnapshot : ModelSnapshot
@@ -46,6 +46,48 @@ namespace BookService.Migrations.BookMigrations
                     b.HasKey("Id");
 
                     b.ToTable("Books");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Author = "F. Scott Fitzgerald",
+                            Price = 10.99m,
+                            Quantity = 5,
+                            Title = "The Great Gatsby"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Author = "Herman Melville",
+                            Price = 12.99m,
+                            Quantity = 3,
+                            Title = "Moby Dick"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Author = "George Orwell",
+                            Price = 14.99m,
+                            Quantity = 7,
+                            Title = "1984"
+                        },
+                        new
+                        {
+                            Id = 4,
+                            Author = "Harper Lee",
+                            Price = 9.99m,
+                            Quantity = 10,
+                            Title = "To Kill a Mockingbird"
+                        },
+                        new
+                        {
+                            Id = 5,
+                            Author = "Jane Austen",
+                            Price = 11.99m,
+                            Quantity = 2,
+                            Title = "Pride and Prejudice"
+                        });
                 });
 #pragma warning restore 612, 618
         }

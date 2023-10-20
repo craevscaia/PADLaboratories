@@ -5,7 +5,7 @@ namespace BookService.Extensions;
 
 public static class ModelBuilderExtensions
 {
-    public static void OnModelCreating(this ModelBuilder modelBuilder)
+    public static void BookSeed(this ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Book>().HasData(
             new Book

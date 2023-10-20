@@ -3,10 +3,12 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace BookService.Migrations.BookMigrations
+#pragma warning disable CA1814 // Prefer jagged arrays over multidimensional
+
+namespace BookService.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialCreate : Migration
+    public partial class SeedBooks : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -25,6 +27,18 @@ namespace BookService.Migrations.BookMigrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Books", x => x.Id);
+                });
+
+            migrationBuilder.InsertData(
+                table: "Books",
+                columns: new[] { "Id", "Author", "Price", "Quantity", "Title" },
+                values: new object[,]
+                {
+                    { 1, "F. Scott Fitzgerald", 10.99m, 5, "The Great Gatsby" },
+                    { 2, "Herman Melville", 12.99m, 3, "Moby Dick" },
+                    { 3, "George Orwell", 14.99m, 7, "1984" },
+                    { 4, "Harper Lee", 9.99m, 10, "To Kill a Mockingbird" },
+                    { 5, "Jane Austen", 11.99m, 2, "Pride and Prejudice" }
                 });
         }
 

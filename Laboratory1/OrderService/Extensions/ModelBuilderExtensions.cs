@@ -5,7 +5,7 @@ namespace OrderService.Extensions;
 
 public static class ModelBuilderExtensions
 {
-    public static void OnModelCreating(this ModelBuilder modelBuilder)
+    public static void SeedOrder(this ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Order>().HasData(
             new Order { Id = 1, BookId = 1, Quantity = 2, TotalPrice = 21.98M },

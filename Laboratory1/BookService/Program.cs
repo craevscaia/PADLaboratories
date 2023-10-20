@@ -1,3 +1,6 @@
+using BookService;
+using BookService.Extensions;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Register services and configure the application using the Startup class
@@ -6,5 +9,5 @@ startup.ConfigureServices(builder.Services);
 
 var app = builder.Build();
 startup.Configure(app);
-
+app.Services.ApplyMigrations();
 app.Run();

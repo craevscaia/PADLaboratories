@@ -234,7 +234,9 @@ _pkginfo.txt
 *.[Cc]ache
 # but keep track of directories ending in .cache
 !?*.[Cc]ache/
-
+/Laboratory1/APIGateway/Scripts
+/Laboratory1/ServiceDiscovery/Scripts
+Laboratory1/.idea
 # Others
 ClientBin/
 ~$*

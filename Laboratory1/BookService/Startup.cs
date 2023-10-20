@@ -4,6 +4,8 @@ using BookService.Infrastructure;
 using BookService.Middleware;
 using Microsoft.EntityFrameworkCore;
 
+namespace BookService;
+
 public class Startup
 {
     public IConfiguration Configuration { get; }
@@ -37,13 +39,14 @@ public class Startup
             app.UseSwagger();
             app.UseSwaggerUI();
         }
+        
         app.UseMiddleware<ConcurrencyLimiterMiddleware>();
         app.UseMiddleware<RequestTimeoutMiddleware>();
 
         app.MapHealthChecks("/health");
         app.UseIpRateLimiting();
 
-        app.UseHttpsRedirection();
+        app.UseHsts();
         app.UseAuthorization();
         app.MapControllers();
     }

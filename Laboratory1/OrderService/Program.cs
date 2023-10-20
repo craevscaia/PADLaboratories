@@ -1,4 +1,5 @@
 using OrderService;
+using OrderService.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -8,5 +9,5 @@ startup.ConfigureServices(builder.Services);
 
 var app = builder.Build();
 startup.Configure(app);
-
+app.Services.ApplyMigrations();
 app.Run();

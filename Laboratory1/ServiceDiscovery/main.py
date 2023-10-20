@@ -1,7 +1,9 @@
 from flask import Flask, request, jsonify
 from flask_limiter import Limiter
 from flask_caching import Cache
-import requests
+import logging
+
+logging.basicConfig(level=logging.INFO)
 
 # Flask application with a simple in-memory cache.
 app = Flask(__name__)
@@ -33,8 +35,11 @@ def register_service():
     if name not in services:
         services[name] = []
         round_robin_store[name] = 0
-    services[name].append(address)
+        logging.info(f"New service {name} registered with address {address}")
+    else:
+        logging.info(f"Service {name} updated with new address {address}")
 
+    services[name].append(address)
     return jsonify({"message": "Registered successfully"}), 200
 
 
@@ -46,10 +51,11 @@ def discover_service(service):
         # Simple round-robin load balancing
         next_index = round_robin_store[service] % len(services[service])
         round_robin_store[service] += 1
-
         address = services[service][next_index]
+        logging.info(f"Service {service} discovered. Directing to address {address}")
         return jsonify({"service_address": address}), 200
     else:
+        logging.warning(f"Service {service} not found")
         return jsonify({"error": f"Service {service} not found"}), 404
 
 
@@ -57,13 +63,14 @@ def discover_service(service):
 def status():
     return jsonify({"status": "Service Discovery is up and running!"}), 200
 
+
 # Too Many Requests
 @app.errorhandler(429)
 def ratelimit_error(e):
-    # This is where you'd integrate with an alerting system to notify of the high load.
-    print("ALERT: Critical load reached!")
+    logging.warning(f"ALERT: Critical load reached from IP {get_remote_address()}")
     return jsonify(error="ratelimit exceeded"), 429
 
 
 if __name__ == '__main__':
+    logging.info("Starting Service Discovery on port 6000")
     app.run(host='0.0.0.0', port=6000)

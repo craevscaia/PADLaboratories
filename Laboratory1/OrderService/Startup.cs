@@ -47,7 +47,7 @@ public class Startup
         //2 requests per second
         app.UseIpRateLimiting(); // concurrency task limit
 
-        app.UseHttpsRedirection();
+        app.UseHsts();
         app.UseAuthorization();
         app.MapControllers();
     }

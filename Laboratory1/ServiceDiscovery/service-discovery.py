@@ -1,10 +1,11 @@
-from flask import Flask, request, jsonify
-from flask_limiter import Limiter
-from flask_caching import Cache
 import logging
-import redis
 import time
-import config
+import redis
+from flask import Flask, request, jsonify
+from flask_caching import Cache
+from flask_limiter import Limiter
+
+import serviceConfig
 
 logging.basicConfig(level=logging.INFO)
 
@@ -17,12 +18,17 @@ def get_remote_address():
 
 
 # Set up caching with Redis
-app.config['CACHE_TYPE'] = config.CACHE_TYPE
-app.config['CACHE_REDIS_URL'] = config.REDIS_URL
+app.config['CACHE_TYPE'] = serviceConfig.CACHE_TYPE
+app.config['CACHE_REDIS_URL'] = serviceConfig.REDIS_URL
 cache = Cache(app)
 
 # Set up rate limiting
-limiter = Limiter(key_func=get_remote_address, default_limits=["200 per day", "50 per hour"])
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["12200 per day", "500 per hour"],
+    storage_uri=serviceConfig.REDIS_URL
+)
 limiter.init_app(app)
 
 # In-memory store for simple load balancing
@@ -34,16 +40,16 @@ round_robin_store = {}
 def register_service():
     data = request.json
     name = data.get('name')
-    address = data.get('address')
+    url = data.get('url')
 
     # Simple round-robin load balancing setup
     if not cache.get(name):
         round_robin_store[name] = 0
-        logging.info(f"New service {name} registered with address {address}")
+        logging.info(f"New service {name} registered with url {url}")
     else:
-        logging.info(f"Service {name} updated with new address {address}")
+        logging.info(f"Service {name} updated with new url {url}")
 
-    cache.set(name, address)
+    cache.set(name, url)
     return jsonify({"message": "Registered successfully"}), 200
 
 
@@ -72,10 +78,10 @@ def ratelimit_error(e):
 
 
 def connect_to_redis():
-    retries = config.RETRY_COUNT
+    retries = serviceConfig.RETRY_COUNT
     for i in range(retries):
         try:
-            r = redis.StrictRedis(host=config.REDIS_HOST, port=config.REDIS_PORT, db=config.REDIS_DB)
+            r = redis.StrictRedis(host=serviceConfig.REDIS_HOST, port=serviceConfig.REDIS_PORT, db=serviceConfig.REDIS_DB)
             r.ping()
             logging.info("Connected to Redis")
             return r
@@ -88,6 +94,6 @@ def connect_to_redis():
 
 
 if __name__ == '__main__':
-    connect_to_redis()
-    logging.info(f"Starting Service Discovery on port {config.FLASK_PORT}")
-    app.run(host=config.FLASK_HOST, port=config.FLASK_PORT)
+    # connect_to_redis()
+    logging.info(f"Starting Service Discovery on port {serviceConfig.FLASK_PORT}")
+    app.run(host=serviceConfig.FLASK_HOST, port=serviceConfig.FLASK_PORT, debug=True)

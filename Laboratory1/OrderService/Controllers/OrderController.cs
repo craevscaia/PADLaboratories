@@ -25,7 +25,7 @@ public class OrderController : ControllerBase
     public ActionResult<Order> Get(int id)
     {
         var order = _orderService.GetOrderById(id);
-        if (order == null) return NotFound();
+        if (order == null) return NotFound("Not found");
         return order;
     }
 

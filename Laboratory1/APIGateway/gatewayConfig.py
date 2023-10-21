@@ -1,4 +1,4 @@
-# config.py
+# gatewayConfig.py
 import os
 
 # Redis Configuration
@@ -10,7 +10,7 @@ CACHE_TYPE = os.environ.get('CACHE_TYPE', 'redis')
 
 # Flask Configuration
 FLASK_HOST = os.environ.get('FLASK_HOST', '0.0.0.0')
-FLASK_PORT = int(os.environ.get('FLASK_PORT', 6000))
+FLASK_PORT = int(os.environ.get('FLASK_PORT', 5000))
 
 # Service Discovery
-SERVICE_DISCOVERY = "http://localhost:5000"
+SERVICE_DISCOVERY = "http://localhost:6000/"

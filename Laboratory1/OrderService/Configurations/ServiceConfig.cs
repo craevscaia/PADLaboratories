@@ -1,4 +1,4 @@
-﻿namespace BookService.Configurations
+﻿namespace OrderService.Configurations
 {
     public class ServiceConfig
     {

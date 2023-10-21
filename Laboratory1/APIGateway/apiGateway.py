@@ -1,20 +1,21 @@
-from flask import Flask, request, jsonify, redirect
-from flask_caching import Cache
-import config
 import logging
-import requests
 import time
+import requests
+from flask import Flask, jsonify, request
+from flask_caching import Cache
+
+import gatewayConfig
 
 logging.basicConfig(level=logging.INFO)
 
 app = Flask(__name__)
 
 # Set up caching with Redis
-app.config['CACHE_TYPE'] = config.CACHE_TYPE
-app.config['CACHE_REDIS_URL'] = config.REDIS_URL
+app.config['CACHE_TYPE'] = gatewayConfig.CACHE_TYPE
+app.config['CACHE_REDIS_URL'] = gatewayConfig.REDIS_URL
 cache = Cache(app)
 
-SERVICE_DISCOVERY_URL = config.SERVICE_DISCOVERY
+SERVICE_DISCOVERY_URL = gatewayConfig.SERVICE_DISCOVERY
 
 
 def check_service_discovery_health():
@@ -35,14 +36,15 @@ def check_service_discovery_health():
     return False
 
 
+@app.route('/<service>/', defaults={'path': ''}, methods=['GET', 'POST', 'PUT', 'DELETE'])
 @app.route('/<service>/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE'])
-def proxy(service, path):
+def proxy(service, path=''):
     # Check if service address is in cache
     service_address = cache.get(service)
 
     if not service_address:
         # If not in cache, ask Service Discovery
-        response = requests.get(SERVICE_DISCOVERY_URL + service)
+        response = requests.get(f"{SERVICE_DISCOVERY_URL}/{service}")
         if response.status_code == 200:
             service_address = response.json().get("service_address")
             cache.set(service, service_address)
@@ -50,7 +52,11 @@ def proxy(service, path):
             return jsonify({"error": f"Service {service} not found"}), 404
 
     # Forward the request to the microservice
-    forward_url = f"{service_address}/{path}"
+    if path:
+        forward_url = f"{service_address}/{service}/{path}"
+    else:
+        forward_url = f"{service_address}/{service}"
+
     response = requests.request(
         method=request.method,
         url=forward_url,
@@ -65,16 +71,19 @@ def proxy(service, path):
 
     # Cache the response for GET requests
     if request.method == "GET":
-        cache.set(f"{service}_{path}", response.content)
+        cache_key = f"{service}_{path}" if path else f"{service}"
+        cache.set(cache_key, response.content)
 
-    # Return the response from the microservice
-    return (response.content, response.status_code, response.headers.items())
+    # Return the response from the microservice in JSON format
+    return jsonify(response.content.decode('utf-8')), response.status_code
+
 
 @app.route('/health', methods=['GET'])
 def status():
     return jsonify({"health": "Api gateway is up and running!"}), 200
 
+
 if __name__ == '__main__':
     check_service_discovery_health()
-    logging.info(f"Starting API Gateway on port {config.FLASK_PORT}")
-    app.run(host=config.FLASK_HOST, port=config.FLASK_PORT)
+    logging.info(f"Starting API Gateway on port {gatewayConfig.FLASK_PORT}")
+    app.run(host=gatewayConfig.FLASK_HOST, port=gatewayConfig.FLASK_PORT, debug=True)

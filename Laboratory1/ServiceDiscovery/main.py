@@ -2,20 +2,23 @@ from flask import Flask, request, jsonify
 from flask_limiter import Limiter
 from flask_caching import Cache
 import logging
+import redis
+import time
+import config
 
 logging.basicConfig(level=logging.INFO)
 
-# Flask application with a simple in-memory cache.
+# Flask application.
 app = Flask(__name__)
 
-# Set up caching
-cache = Cache(app, config={'CACHE_TYPE': 'simple'})
+# Set up caching with Redis
+app.config['CACHE_TYPE'] = config.CACHE_TYPE
+app.config['CACHE_REDIS_URL'] = config.REDIS_URL
+cache = Cache(app)
 
 # Set up rate limiting
 limiter = Limiter(app, key_func=get_remote_address)
 
-# In-memory store of registered microservices
-services = {}
 # In-memory store for simple load balancing
 round_robin_store = {}
 
@@ -32,28 +35,26 @@ def register_service():
     address = data.get('address')
 
     # Simple round-robin load balancing setup
-    if name not in services:
-        services[name] = []
+    if not cache.get(name):
         round_robin_store[name] = 0
         logging.info(f"New service {name} registered with address {address}")
     else:
         logging.info(f"Service {name} updated with new address {address}")
 
-    services[name].append(address)
+    cache.set(name, address)
     return jsonify({"message": "Registered successfully"}), 200
 
 
 @app.route('/discover/<service>', methods=['GET'])
 @limiter.limit("10 per second")
-@cache.cached(timeout=50)
 def discover_service(service):
-    if service in services:
+    address = cache.get(service)
+    if address:
         # Simple round-robin load balancing
-        next_index = round_robin_store[service] % len(services[service])
+        next_index = round_robin_store[service] % len(address)
         round_robin_store[service] += 1
-        address = services[service][next_index]
         logging.info(f"Service {service} discovered. Directing to address {address}")
-        return jsonify({"service_address": address}), 200
+        return jsonify({"service_address": address.decode('utf-8')}), 200
     else:
         logging.warning(f"Service {service} not found")
         return jsonify({"error": f"Service {service} not found"}), 404
@@ -71,6 +72,23 @@ def ratelimit_error(e):
     return jsonify(error="ratelimit exceeded"), 429
 
 
+def connect_to_redis():
+    retries = config.RETRY_COUNT
+    for i in range(retries):
+        try:
+            r = redis.StrictRedis(host=config.REDIS_HOST, port=config.REDIS_PORT, db=config.REDIS_DB)
+            r.ping()
+            logging.info("Connected to Redis")
+            return r
+        except redis.ConnectionError:
+            wait = 2 ** i
+            logging.error(f"Failed to connect to Redis. Retrying in {wait} seconds...")
+            time.sleep(wait)
+    logging.error("Failed to connect to Redis after multiple retries. Exiting...")
+    exit(1)
+
+
 if __name__ == '__main__':
-    logging.info("Starting Service Discovery on port 6000")
-    app.run(host='0.0.0.0', port=6000)
+    connect_to_redis()
+    logging.info(f"Starting Service Discovery on port {config.FLASK_PORT}")
+    app.run(host=config.FLASK_HOST, port=config.FLASK_PORT)

@@ -1,51 +1,56 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, redirect
+from flask_caching import Cache
+import requests
+import config
+import logging
+
+logging.basicConfig(level=logging.INFO)
 
 app = Flask(__name__)
 
-# In-memory store of registered microservices
-microservices = {}
+# Set up caching with Redis
+app.config['CACHE_TYPE'] = config.CACHE_TYPE
+app.config['CACHE_REDIS_URL'] = config.REDIS_URL
+cache = Cache(app)
 
-
-@app.route('/register', methods=['POST'])
-def register_service():
-    """
-    Endpoint for microservices to register themselves.
-    """
-    # Log the registration attempt
-    print(f"Registration request received from {request.remote_addr}")
-
-    data = request.json
-    name = data.get('name')
-    address = data.get('address')
-
-    if name and address:
-        microservices[name] = address
-        return jsonify({"message": "Registered successfully"}), 200
-    else:
-        return jsonify({"error": "Invalid registration data"}), 400
-
+SERVICE_DISCOVERY_URL =  config.SERVICE_DISCOVERY
 
 @app.route('/<service>/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE'])
 def proxy(service, path):
-    """
-    Endpoint to route requests to appropriate microservices.
-    """
-    # Log the access
-    print(f"Access request for service {service} received from {request.remote_addr}")
+    # Check if service address is in cache
+    service_address = cache.get(service)
 
-    # Route request to the appropriate microservice
-    if service in microservices:
-        # For simplicity, just show the address here.
-        # You would use an HTTP client like requests to actually
-        # forward the request and get a response.
-        return jsonify({"service_address": microservices[service]})
-    else:
-        return jsonify({"error": f"Service {service} not found"}), 404
+    if not service_address:
+        # If not in cache, ask Service Discovery
+        response = requests.get(SERVICE_DISCOVERY_URL + service)
+        if response.status_code == 200:
+            service_address = response.json().get("service_address")
+            cache.set(service, service_address)
+        else:
+            return jsonify({"error": f"Service {service} not found"}), 404
 
-@app.route('/status', methods=['GET'])
-def status():
-    return jsonify({"status": "API Gateway is up and running!"}), 200
+    # Forward the request to the microservice
+    forward_url = f"{service_address}/{path}"
+    response = requests.request(
+        method=request.method,
+        url=forward_url,
+        headers={key: value for (key, value) in request.headers if key != 'Host'},
+        data=request.get_data(),
+        cookies=request.cookies,
+        allow_redirects=False)
+
+    # Invalidate cache for POST and PUT requests
+    if request.method in ["POST", "PUT"]:
+        cache.delete(service)
+
+    # Cache the response for GET requests
+    if request.method == "GET":
+        cache.set(f"{service}_{path}", response.content)
+
+    # Return the response from the microservice
+    return (response.content, response.status_code, response.headers.items())
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    logging.info(f"Starting API Gateway on port {config.FLASK_PORT}")
+    app.run(host=config.FLASK_HOST, port=config.FLASK_PORT)

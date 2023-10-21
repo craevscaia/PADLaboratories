@@ -10,9 +10,15 @@ public class Startup
 {
     public IConfiguration Configuration { get; }
 
-    public Startup(IConfiguration configuration)
+    public Startup(IHostEnvironment environment)
     {
-        Configuration = configuration;
+        var builder = new ConfigurationBuilder()
+            .SetBasePath(environment.ContentRootPath)
+            .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+            .AddJsonFile($"appsettings.{environment.EnvironmentName}.json", optional: true)
+            .AddEnvironmentVariables(); // This line ensures environment variables are used
+
+        Configuration = builder.Build();
     }
 
     public void ConfigureServices(IServiceCollection services)

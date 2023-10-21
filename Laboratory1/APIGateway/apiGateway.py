@@ -1,21 +1,19 @@
 import logging
 import time
 import requests
-from flask import Flask, jsonify, request
-from flask_caching import Cache
-
+import redis
+from flask import Flask, jsonify, request, Response
+import validators
 import gatewayConfig
 
 logging.basicConfig(level=logging.INFO)
 
 app = Flask(__name__)
 
-# Set up caching with Redis
-app.config['CACHE_TYPE'] = gatewayConfig.CACHE_TYPE
-app.config['CACHE_REDIS_URL'] = gatewayConfig.REDIS_URL
-cache = Cache(app)
+redis_conn = redis.StrictRedis(host=gatewayConfig.REDIS_HOST, port=gatewayConfig.REDIS_PORT, db=gatewayConfig.REDIS_DB)
 
 SERVICE_DISCOVERY_URL = gatewayConfig.SERVICE_DISCOVERY
+services_cache = {}  # In-memory store for service addresses
 
 
 def check_service_discovery_health():
@@ -39,43 +37,72 @@ def check_service_discovery_health():
 @app.route('/<service>/', defaults={'path': ''}, methods=['GET', 'POST', 'PUT', 'DELETE'])
 @app.route('/<service>/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE'])
 def proxy(service, path=''):
-    # Check if service address is in cache
-    service_address = cache.get(service)
+    service_address = get_service_address_from_cache(service)
 
     if not service_address:
-        # If not in cache, ask Service Discovery
-        response = requests.get(f"{SERVICE_DISCOVERY_URL}/{service}")
-        if response.status_code == 200:
-            service_address = response.json().get("service_address")
-            cache.set(service, service_address)
-        else:
+        service_address = get_service_address_from_discovery(service)
+
+        if not service_address:
             return jsonify({"error": f"Service {service} not found"}), 404
+        services_cache[service] = service_address  # Store in in-memory dictionary
 
-    # Forward the request to the microservice
+    # Check for cached response
+    cache_key = f"{service}_{path}_response" if path else f"{service}_response"
+    cached_response = redis_conn.get(cache_key)
+    if cached_response:
+        return Response(cached_response,
+                        mimetype='application/json'), 200  # Assuming status code for cached response is always 200
+
+    forward_url = construct_forward_url(service_address, service, path)
+
+    response = forward_request(forward_url, request)
+
+    handle_cache_operations(service, path, request, response)
+
+    return Response(response.content, mimetype='application/json'), response.status_code
+
+
+def get_service_address_from_cache(service):
+    return services_cache.get(service)
+
+
+def get_service_address_from_discovery(service):
+    response = requests.get(f"{SERVICE_DISCOVERY_URL}discover/{service}")
+    if response.status_code == 200:
+        return response.json().get("service_address")
+    return None
+
+
+def construct_forward_url(service_address, service, path):
+    service_address = service_address.rstrip('/').lstrip('/')
+    service = service.rstrip('/').lstrip('/')
+    path = path.rstrip('/').lstrip('/')
+
     if path:
-        forward_url = f"{service_address}/{service}/{path}"
-    else:
-        forward_url = f"{service_address}/{service}"
+        return f"{service_address}/{service}/{path}"
+    return f"{service_address}/{service}"
 
-    response = requests.request(
-        method=request.method,
-        url=forward_url,
-        headers={key: value for (key, value) in request.headers if key != 'Host'},
-        data=request.get_data(),
-        cookies=request.cookies,
-        allow_redirects=False)
 
-    # Invalidate cache for POST and PUT requests
-    if request.method in ["POST", "PUT"]:
-        cache.delete(service)
+def forward_request(url, req):
+    return requests.request(
+        method=req.method,
+        url=url,
+        headers={key: value for (key, value) in req.headers if key != 'Host'},
+        data=req.get_data(),
+        cookies=req.cookies,
+        allow_redirects=False
+    )
 
-    # Cache the response for GET requests
-    if request.method == "GET":
-        cache_key = f"{service}_{path}" if path else f"{service}"
-        cache.set(cache_key, response.content)
 
-    # Return the response from the microservice in JSON format
-    return jsonify(response.content.decode('utf-8')), response.status_code
+def handle_cache_operations(service, path, req, res):
+    # Removed the line that clears the service address from cache
+    if req.method in ["POST", "PUT", "DELETE"]:
+        cache_key = f"{service}_{path}_response" if path else f"{service}_response"
+        redis_conn.delete(cache_key)  # Clear only the response cache
+
+    if req.method == "GET":
+        cache_key = f"{service}_{path}_response" if path else f"{service}_response"
+        redis_conn.set(cache_key, res.content)
 
 
 @app.route('/health', methods=['GET'])

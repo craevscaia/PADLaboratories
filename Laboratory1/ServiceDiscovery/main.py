@@ -11,20 +11,22 @@ logging.basicConfig(level=logging.INFO)
 # Flask application.
 app = Flask(__name__)
 
+
+def get_remote_address():
+    return request.remote_addr
+
+
 # Set up caching with Redis
 app.config['CACHE_TYPE'] = config.CACHE_TYPE
 app.config['CACHE_REDIS_URL'] = config.REDIS_URL
 cache = Cache(app)
 
 # Set up rate limiting
-limiter = Limiter(app, key_func=get_remote_address)
+limiter = Limiter(key_func=get_remote_address, default_limits=["200 per day", "50 per hour"])
+limiter.init_app(app)
 
 # In-memory store for simple load balancing
 round_robin_store = {}
-
-
-def get_remote_address():
-    return request.remote_addr
 
 
 @app.route('/register', methods=['POST'])
@@ -50,19 +52,16 @@ def register_service():
 def discover_service(service):
     address = cache.get(service)
     if address:
-        # Simple round-robin load balancing
-        next_index = round_robin_store[service] % len(address)
-        round_robin_store[service] += 1
         logging.info(f"Service {service} discovered. Directing to address {address}")
-        return jsonify({"service_address": address.decode('utf-8')}), 200
+        return jsonify({"service_address": address}), 200
     else:
         logging.warning(f"Service {service} not found")
         return jsonify({"error": f"Service {service} not found"}), 404
 
 
-@app.route('/status', methods=['GET'])
+@app.route('/health', methods=['GET'])
 def status():
-    return jsonify({"status": "Service Discovery is up and running!"}), 200
+    return jsonify({"health": "Service Discovery is up and running!"}), 200
 
 
 # Too Many Requests

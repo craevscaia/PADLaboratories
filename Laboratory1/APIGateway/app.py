@@ -1,8 +1,9 @@
 from flask import Flask, request, jsonify, redirect
 from flask_caching import Cache
-import requests
 import config
 import logging
+import requests
+import time
 
 logging.basicConfig(level=logging.INFO)
 
@@ -13,7 +14,26 @@ app.config['CACHE_TYPE'] = config.CACHE_TYPE
 app.config['CACHE_REDIS_URL'] = config.REDIS_URL
 cache = Cache(app)
 
-SERVICE_DISCOVERY_URL =  config.SERVICE_DISCOVERY
+SERVICE_DISCOVERY_URL = config.SERVICE_DISCOVERY
+
+
+def check_service_discovery_health():
+    retries = 5
+    for i in range(retries):
+        try:
+            response = requests.get(f"{SERVICE_DISCOVERY_URL}/health")
+            if response.status_code == 200:
+                logging.info("Service Discovery is healthy and running.")
+                return True
+            else:
+                logging.warning(f"Service Discovery returned status {response.status_code}. Retrying...")
+                time.sleep(5)
+        except requests.RequestException as e:
+            logging.warning(f"Failed to connect to Service Discovery. Error: {e}. Retrying...")
+            time.sleep(5)
+    logging.warning("Failed to connect to Service Discovery after multiple retries. Starting API Gateway with caution.")
+    return False
+
 
 @app.route('/<service>/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE'])
 def proxy(service, path):
@@ -50,7 +70,11 @@ def proxy(service, path):
     # Return the response from the microservice
     return (response.content, response.status_code, response.headers.items())
 
+@app.route('/health', methods=['GET'])
+def status():
+    return jsonify({"health": "Api gateway is up and running!"}), 200
 
 if __name__ == '__main__':
+    check_service_discovery_health()
     logging.info(f"Starting API Gateway on port {config.FLASK_PORT}")
     app.run(host=config.FLASK_HOST, port=config.FLASK_PORT)

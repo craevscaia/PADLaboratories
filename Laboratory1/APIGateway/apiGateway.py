@@ -3,7 +3,6 @@ import time
 import requests
 import redis
 from flask import Flask, jsonify, request, Response
-import validators
 import gatewayConfig
 
 logging.basicConfig(level=logging.INFO)
@@ -18,18 +17,19 @@ services_cache = {}  # In-memory store for service addresses
 
 def check_service_discovery_health():
     retries = 5
+    backoff_factor = 2  # Time delay factor
     for i in range(retries):
         try:
-            response = requests.get(f"{SERVICE_DISCOVERY_URL}/health")
+            response = requests.get(f"{SERVICE_DISCOVERY_URL}/health", timeout=gatewayConfig.REQUEST_TIMEOUT)
             if response.status_code == 200:
                 logging.info("Service Discovery is healthy and running.")
                 return True
             else:
                 logging.warning(f"Service Discovery returned status {response.status_code}. Retrying...")
-                time.sleep(5)
+                time.sleep(i * backoff_factor)  # Exponential backoff
         except requests.RequestException as e:
             logging.warning(f"Failed to connect to Service Discovery. Error: {e}. Retrying...")
-            time.sleep(5)
+            time.sleep(i * backoff_factor)  # Exponential backoff
     logging.warning("Failed to connect to Service Discovery after multiple retries. Starting API Gateway with caution.")
     return False
 
@@ -50,8 +50,7 @@ def proxy(service, path=''):
     cache_key = f"{service}_{path}_response" if path else f"{service}_response"
     cached_response = redis_conn.get(cache_key)
     if cached_response:
-        return Response(cached_response,
-                        mimetype='application/json'), 200  # Assuming status code for cached response is always 200
+        return Response(cached_response, mimetype='application/json'), 200
 
     forward_url = construct_forward_url(service_address, service, path)
 
@@ -78,31 +77,40 @@ def construct_forward_url(service_address, service, path):
     service = service.rstrip('/').lstrip('/')
     path = path.rstrip('/').lstrip('/')
 
+    # Forward query parameters
+    query_params = request.query_string.decode()
     if path:
-        return f"{service_address}/{service}/{path}"
-    return f"{service_address}/{service}"
+        return f"{service_address}/{service}/{path}?{query_params}"
+    return f"{service_address}/{service}?{query_params}"
 
 
 def forward_request(url, req):
-    return requests.request(
-        method=req.method,
-        url=url,
-        headers={key: value for (key, value) in req.headers if key != 'Host'},
-        data=req.get_data(),
-        cookies=req.cookies,
-        allow_redirects=False
-    )
+    try:
+        response = requests.request(
+            method=req.method,
+            url=url,
+            headers={key: value for (key, value) in req.headers if key != 'Host'},
+            data=req.get_data(),
+            cookies=req.cookies,
+            allow_redirects=False,
+            timeout=gatewayConfig.REQUEST_TIMEOUT
+        )
+        return response
+    except requests.exceptions.Timeout:
+        logging.error(f"Request to {url} timed out.")
+        return Response(jsonify({"error": "Request timed out"}), status=504)  # 504 Gateway Timeout
 
 
 def handle_cache_operations(service, path, req, res):
-    # Removed the line that clears the service address from cache
+    cache_expiration_time = 300  # 5 minutes, can be set based on your needs
+
     if req.method in ["POST", "PUT", "DELETE"]:
         cache_key = f"{service}_{path}_response" if path else f"{service}_response"
         redis_conn.delete(cache_key)  # Clear only the response cache
 
     if req.method == "GET":
         cache_key = f"{service}_{path}_response" if path else f"{service}_response"
-        redis_conn.set(cache_key, res.content)
+        redis_conn.setex(cache_key, cache_expiration_time, res.content)  # Set cache with expiration time
 
 
 @app.route('/health', methods=['GET'])

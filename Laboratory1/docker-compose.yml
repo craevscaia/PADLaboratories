@@ -1,12 +1,68 @@
-﻿services:
-  bookservice:
-    image: bookservice
-    build:
-      context: .
-      dockerfile: BookService/Dockerfile
+﻿version: '3.7'
 
-  orderservice:
-    image: orderservice
+services:
+  book-service:
+    image: your_book_service_image  # replace with your actual Docker image name for the BookService
     build:
-      context: .
-      dockerfile: OrderService/Dockerfile
+      context: ./path_to_book_service  # replace with path to your BookService source code
+      dockerfile: Dockerfile  # assuming you have a Dockerfile in the specified context
+    ports:
+      - "5004:80"
+
+  order-service:
+    image: your_order_service_image  # replace with your actual Docker image name for the OrderService
+    build:
+      context: ./path_to_order_service  # replace with path to your OrderService source code
+      dockerfile: Dockerfile  # same assumption as above
+    ports:
+      - "5254:80"
+
+  api-gateway:
+    image: your_api_gateway_image  # replace with your actual Docker image name for the ApiGateway
+    build:
+      context: ./path_to_api_gateway
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    depends_on:
+      - service-discovery
+      - redis-cache
+
+  service-discovery:
+    image: your_service_discovery_image  # replace with your actual Docker image name for the ServiceDiscovery
+    build:
+      context: ./path_to_service_discovery
+      dockerfile: Dockerfile
+    ports:
+      - "6000:6000"
+
+  redis-cache:
+    image: redis:latest  # use the latest Redis image from Docker Hub
+    ports:
+      - "6379:6379"
+
+  book-service-db:
+    image: postgres:latest  # use the latest PostgreSQL image from Docker Hub
+    environment:
+      POSTGRES_USER: your_username  # replace with your preferred username
+      POSTGRES_PASSWORD: your_password  # replace with your preferred password
+      POSTGRES_DB: book_service_db  # replace with your preferred database name
+    ports:
+      - "5432:5432"
+    volumes:
+      - book-service-db-data:/var/lib/postgresql/data
+
+  order-service-db:
+    image: postgres:latest  # same as above
+    environment:
+      POSTGRES_USER: your_username  # replace with your preferred username
+      POSTGRES_PASSWORD: your_password  # replace with your preferred password
+      POSTGRES_DB: order_service_db  # replace with your preferred database name
+    ports:
+      - "5433:5432"
+    volumes:
+      - order-service-db-data:/var/lib/postgresql/data
+
+volumes:
+  book-service-db-data:
+  order-service-db-data:

@@ -1,0 +1,4 @@
+requests~=2.27.1
+redis~=5.0.1
+flask~=3.0.0
+requests-mock~=1.11.0

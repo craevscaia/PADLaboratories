@@ -6,6 +6,13 @@ import redis
 from flask import Flask, jsonify, request, Response
 from flask_limiter.util import get_remote_address
 from flask_limiter import Limiter
+import pybreaker
+
+# Circuit Breaker Configuration
+circuit_breaker = pybreaker.CircuitBreaker(
+    fail_max=3,  # number of failures before changing to open state
+    reset_timeout=10  # seconds after which the state should change from open to half-open
+)
 
 # Choose the config based on the environment variable
 config_mode = os.environ.get('CONFIG_MODE', 'default')
@@ -93,10 +100,22 @@ def get_service_address_from_cache(service):
 
 
 def get_service_address_from_discovery(service):
-    response = requests.get(f"{SERVICE_DISCOVERY_URL}discover/{service}")
-    if response.status_code == 200:
-        return response.json().get("service_address")
-    return None
+    try:
+        response = call_service_discovery(f"{SERVICE_DISCOVERY_URL}discover/{service}")
+        if response.status_code == 200:
+            return response.json().get("service_address")
+        return None
+    except pybreaker.CircuitBreakerError:
+        logging.error("Circuit Breaker is open, not making request to Service Discovery")
+        return None
+    except Exception as e:
+        logging.error(f"Failed to call Service Discovery. Error: {e}")
+        return None
+
+
+@circuit_breaker
+def call_service_discovery(url):
+    return requests.get(url)
 
 
 def construct_forward_url(service_address, service, path):
@@ -123,9 +142,16 @@ def forward_request(url, req):
             timeout=gatewayConfig.REQUEST_TIMEOUT
         )
         return response
+    except pybreaker.CircuitBreakerError:
+        logging.error("Circuit Breaker is open, not making request")
+        return Response(jsonify({"error": "Circuit Breaker is open, not making request"}),
+                        status=503)  # 503 Service Unavailable
     except requests.exceptions.Timeout:
         logging.error(f"Request to {url} timed out.")
         return Response(jsonify({"error": "Request timed out"}), status=504)  # 504 Gateway Timeout
+    except Exception as e:
+        logging.error(f"Failed to forward request. Error: {e}")
+    return Response(jsonify({"error": "Service error"}), status=500)
 
 
 def handle_cache_operations(service, path, req, res):

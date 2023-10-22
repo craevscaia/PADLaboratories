@@ -171,6 +171,12 @@ def status():
     return jsonify({"health": "Api gateway is up and running!"}), 200
 
 
+@app.route('/clear-cache', methods=['POST'])
+def clear_cache():
+    redis_conn.flushdb()
+    return jsonify({"status": "Cache cleared successfully"}), 200
+
+
 if __name__ == '__main__':
     check_service_discovery_health()
     logging.info(f"Starting API Gateway on port {gatewayConfig.FLASK_PORT}")

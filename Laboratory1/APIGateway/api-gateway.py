@@ -1,9 +1,22 @@
 import logging
+import os
 import time
 import requests
 import redis
 from flask import Flask, jsonify, request, Response
-import gatewayConfig
+from flask_limiter.util import get_remote_address
+from flask_limiter import Limiter
+
+# Choose the config based on the environment variable
+config_mode = os.environ.get('CONFIG_MODE', 'default')
+if config_mode == 'docker':
+    import gatewayConfigDocker as gatewayConfig
+
+    print("Using Docker Configuration")
+else:
+    import gatewayConfigDefault as gatewayConfig
+
+    print("Using Default Configuration")
 
 logging.basicConfig(level=logging.INFO)
 
@@ -13,6 +26,20 @@ redis_conn = redis.StrictRedis(host=gatewayConfig.REDIS_HOST, port=gatewayConfig
 
 SERVICE_DISCOVERY_URL = gatewayConfig.SERVICE_DISCOVERY
 services_cache = {}  # In-memory store for service addresses
+
+# Setup Flask Limiter with Redis as the storage backend
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["10 per minute"],
+    storage_uri=f"redis://{gatewayConfig.REDIS_HOST}:{gatewayConfig.REDIS_PORT}/{gatewayConfig.REDIS_DB}",
+)
+
+
+# Exemption logic (keep this as-is, as per your instructions)
+@limiter.request_filter
+def exempt_users():
+    return False
 
 
 def check_service_discovery_health():

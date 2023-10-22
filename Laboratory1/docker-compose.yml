@@ -1,68 +1,100 @@
-﻿version: '3.7'
+﻿version: '3.8'
 
 services:
-  book-service:
-    image: your_book_service_image  # replace with your actual Docker image name for the BookService
-    build:
-      context: ./path_to_book_service  # replace with path to your BookService source code
-      dockerfile: Dockerfile  # assuming you have a Dockerfile in the specified context
+  redis:
+    image: redis:latest
+    container_name: "redis"
     ports:
-      - "5004:80"
+      - "6379:6379"
+    networks:
+      - lab-network
 
-  order-service:
-    image: your_order_service_image  # replace with your actual Docker image name for the OrderService
+  servicediscovery:
     build:
-      context: ./path_to_order_service  # replace with path to your OrderService source code
-      dockerfile: Dockerfile  # same assumption as above
-    ports:
-      - "5254:80"
-
-  api-gateway:
-    image: your_api_gateway_image  # replace with your actual Docker image name for the ApiGateway
-    build:
-      context: ./path_to_api_gateway
-      dockerfile: Dockerfile
-    ports:
-      - "5000:5000"
-    depends_on:
-      - service-discovery
-      - redis-cache
-
-  service-discovery:
-    image: your_service_discovery_image  # replace with your actual Docker image name for the ServiceDiscovery
-    build:
-      context: ./path_to_service_discovery
+      context: ./ServiceDiscovery
       dockerfile: Dockerfile
     ports:
       - "6000:6000"
-
-  redis-cache:
-    image: redis:latest  # use the latest Redis image from Docker Hub
-    ports:
-      - "6379:6379"
-
-  book-service-db:
-    image: postgres:latest  # use the latest PostgreSQL image from Docker Hub
+    networks:
+      - lab-network
+    depends_on:
+      - redis
     environment:
-      POSTGRES_USER: your_username  # replace with your preferred username
-      POSTGRES_PASSWORD: your_password  # replace with your preferred password
-      POSTGRES_DB: book_service_db  # replace with your preferred database name
-    ports:
-      - "5432:5432"
-    volumes:
-      - book-service-db-data:/var/lib/postgresql/data
+      - CONFIG_MODE=docker
 
-  order-service-db:
-    image: postgres:latest  # same as above
+  apigateway:
+    build:
+      context: ./APIGateway
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    networks:
+      - lab-network
+    depends_on:
+      - servicediscovery
+      - redis
     environment:
-      POSTGRES_USER: your_username  # replace with your preferred username
-      POSTGRES_PASSWORD: your_password  # replace with your preferred password
-      POSTGRES_DB: order_service_db  # replace with your preferred database name
+      - CONFIG_MODE=docker
+
+
+  orderservice:
+    build:
+      context: ./OrderService
+      dockerfile: Dockerfile
+    ports:
+      - "5254:80"
+    networks:
+      - lab-network
+    depends_on:
+      - apigateway
+      - orderdb
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Deploy
+
+  bookservice:
+    build:
+      context: ./BookService
+      dockerfile: Dockerfile
+    ports:
+      - "5004:80"
+    networks:
+      - lab-network
+    depends_on:
+      - apigateway
+      - bookdb
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Deploy
+
+  orderdb:
+    image: postgres:latest
+    environment:
+      POSTGRES_DB: order
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
     ports:
       - "5433:5432"
     volumes:
-      - order-service-db-data:/var/lib/postgresql/data
+      - order-data:/var/lib/postgresql/data
+    networks:
+      - lab-network
+
+  bookdb:
+    image: postgres:latest
+    environment:
+      POSTGRES_DB: book
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5434:5432"
+    volumes:
+      - book-data:/var/lib/postgresql/data
+    networks:
+      - lab-network
+
+networks:
+  lab-network:
+    driver: bridge
 
 volumes:
-  book-service-db-data:
-  order-service-db-data:
+  order-data:
+  book-data:

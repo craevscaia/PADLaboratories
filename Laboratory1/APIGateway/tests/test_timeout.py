@@ -6,7 +6,7 @@ from time import sleep
 import requests
 import requests_mock
 
-import gatewayConfig
+import gatewayConfigDefault
 
 # Your gateway's configuration
 GATEWAY_URL = 'http://localhost:5000'
@@ -47,7 +47,7 @@ class TestTimeout(unittest.TestCase):
         mocked_service_address = f'http://localhost:{DELAY_SERVER_PORT}'
 
         with requests_mock.Mocker() as m:
-            m.get(f'{gatewayConfig.SERVICE_DISCOVERY}discover/testservice', json={'service_address': mocked_service_address})
+            m.get(f'{gatewayConfigDefault.SERVICE_DISCOVERY}discover/testservice', json={'service_address': mocked_service_address})
 
             m.get(f'{GATEWAY_URL}/testservice/somepath', json={"message": "This is a mock response"}, status_code=504)
 

@@ -1,9 +1,20 @@
 import logging
+import os
+
 import redis
 from flask import Flask, request, jsonify
 from flask_limiter import Limiter
 
-import serviceConfig
+# Choose the config based on the environment variable
+config_mode = os.environ.get('CONFIG_MODE', 'default')
+if config_mode == 'docker':
+    import serviceConfigDocker as serviceConfig
+
+    print("Using Docker Configuration")
+else:
+    import serviceConfigDefault as serviceConfig
+
+    print("Using Default Configuration")
 
 logging.basicConfig(level=logging.INFO)
 
@@ -20,7 +31,7 @@ def get_remote_address():
 limiter = Limiter(
     app=app,
     key_func=get_remote_address,
-    default_limits=["12200 per day", "500 per hour"],
+    default_limits=["200 per day", "50 per hour"],
     storage_uri=serviceConfig.REDIS_URL
 )
 limiter.init_app(app)
@@ -58,8 +69,8 @@ def discover_service(service):
         return jsonify({"error": f"Service {service} not found"}), 404
 
 
-
 @app.route('/health', methods=['GET'])
+@limiter.limit("10 per minute")
 def status():
     return jsonify({"health": "Service Discovery is up and running!"}), 200
 

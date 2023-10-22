@@ -1,4 +1,4 @@
-# serviceConfig.py
+# serviceConfigDefault.py
 import os
 
 # Redis Configuration

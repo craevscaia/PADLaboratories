@@ -16,8 +16,10 @@
             get
             {
                 var isDocker = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true";
-                var host = isDocker ? Environment.MachineName : "localhost";
+                Console.WriteLine($"Is running on docker: {isDocker}");
+                var host = isDocker ? "orderservice" : "localhost";  // Use the service name as the host
                 var port = Environment.GetEnvironmentVariable("ASPNETCORE_URLS")?.Split(":").Last() ?? "80";
+                Console.WriteLine($"Host: {host} Port: {port}");
                 return $"http://{host}:{port}";
             }
         }

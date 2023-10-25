@@ -89,7 +89,6 @@ def health_check_services():
         service_urls = [url.decode('utf-8') for url in redis_conn.lrange(service_name, 0, -1)]
         for service_url in service_urls:
             try:
-                # Assuming each service has a `/health` endpoint.
                 response = requests.get(f"{service_url}/health", timeout=5)
                 if response.status_code != 200:
                     logging.warning(f"Removing unhealthy instance: {service_url} of service {service_name}")

@@ -8,6 +8,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BookService", "BookService1
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OrderService", "OrderService1\OrderService.csproj", "{91F291C7-E1EA-4935-8DA0-6CE873935263}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BookService.Tests", "BookService.Tests\BookService.Tests.csproj", "{51A6B7BE-7C29-4479-9CA6-C6FCD581761B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -30,5 +32,9 @@ Global
 		{91F291C7-E1EA-4935-8DA0-6CE873935263}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{91F291C7-E1EA-4935-8DA0-6CE873935263}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{91F291C7-E1EA-4935-8DA0-6CE873935263}.Release|Any CPU.Build.0 = Release|Any CPU
+		{51A6B7BE-7C29-4479-9CA6-C6FCD581761B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{51A6B7BE-7C29-4479-9CA6-C6FCD581761B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{51A6B7BE-7C29-4479-9CA6-C6FCD581761B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{51A6B7BE-7C29-4479-9CA6-C6FCD581761B}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

@@ -100,3 +100,6 @@ ensuring that the service runs consistently across different environments.
 operation of the application containers across clusters of hosts.
 
 ![img_1.png](img_1.png)
+
+API documentation:
+https://documenter.getpostman.com/view/23334469/2s9YRE1Wek

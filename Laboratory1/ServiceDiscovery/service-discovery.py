@@ -49,15 +49,19 @@ def register_service():
     name = data.get('name')
     url = data.get('url')
 
-    if not redis_conn.exists(name):
+    service_list_key = f"{name}_list"
+    service_set_key = f"{name}_set"
+
+    if not redis_conn.exists(service_list_key):
         print(f"New service {name} registered with url {url}")
-        redis_conn.rpush(name, url)  # Store the service URL in a list
+        redis_conn.rpush(service_list_key, url)  # Store the service URL in a list
+        redis_conn.sadd(service_set_key, url)  # Also store the service URL in a set
     else:
         # Check if the URL is already registered
-        if not redis_conn.sismember(f"{name}_set", url):
+        if not redis_conn.sismember(service_set_key, url):
             print(f"New instance of service {name} registered with url {url}")
-            redis_conn.rpush(name, url)  # Store the service URL in a list
-            redis_conn.sadd(f"{name}_set", url)  # Store the service URL in a set for quick lookup
+            redis_conn.rpush(service_list_key, url)  # Store the service URL in a list
+            redis_conn.sadd(service_set_key, url)  # Also store the service URL in a set
         else:
             print(f"Instance of service {name} with url {url} is already registered")
 
@@ -67,7 +71,8 @@ def register_service():
 @app.route('/discover/<service>', methods=['GET'])
 @limiter.limit("10 per second")
 def discover_service(service):
-    service_urls = [url.decode('utf-8') for url in redis_conn.lrange(service, 0, -1)]
+    service_list_key = f"{service}_list"
+    service_urls = [url.decode('utf-8') for url in redis_conn.lrange(service_list_key, 0, -1)]
 
     if not service_urls:
         print(f"Service {service} not found")
@@ -81,6 +86,7 @@ def discover_service(service):
     address = service_urls[round_robin_store[service]]
     print(f"Service {service} discovered. Directing to address {address}")
     return jsonify({"service_address": address}), 200
+
 
 
 @app.route('/health', methods=['GET'])
@@ -98,16 +104,18 @@ def ratelimit_error(e):
 
 def health_check_services():
     for service_name in redis_conn.keys():
+        if not service_name.endswith(b"_list"):  # Ensure that it's a service list key
+            continue
         service_urls = [url.decode('utf-8') for url in redis_conn.lrange(service_name, 0, -1)]
         for service_url in service_urls:
             try:
                 response = requests.get(f"{service_url}/health", timeout=5)
                 if response.status_code != 200:
                     print(f"Removing unhealthy instance: {service_url} of service {service_name}")
-                    redis_conn.lrem(service_name, 1, service_url)  # Removes the unhealthy service URL from Redis
+                    redis_conn.lrem(service_name, 1, service_url.encode('utf-8'))  # Removes the unhealthy service URL from Redis
             except requests.RequestException:
                 print(f"Removing unreachable instance: {service_url} of service {service_name}")
-                redis_conn.lrem(service_name, 1, service_url)  # Removes the unreachable service URL from Redis
+                redis_conn.lrem(service_name, 1, service_url.encode('utf-8'))  # Removes the unreachable service URL from Redis
 
 
 if __name__ == '__main__':

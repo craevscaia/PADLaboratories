@@ -86,35 +86,43 @@ def check_service_discovery_health():
 @app.route('/<service>/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE'])
 def proxy(service, path=''):
     print(f"Received request for service: {service}, path: {path}")
-    service_address = get_service_address_from_cache(service)
 
-    if not service_address:
+    # Attempt to retrieve the service address from cache
+    service_address = get_service_address_from_cache(service)
+    if service_address:
+        print("Service address found in cache.")
+    else:
+        # If not in cache, query the Service Discovery
         print(f"Service address for {service} not found in cache, querying Service Discovery")
         service_address = get_service_address_from_discovery(service)
-
         if not service_address:
             print(f"Service {service} not found in Service Discovery")
             return jsonify({"error": f"Service {service} not found"}), 404
-        services_cache[service] = service_address  # Store in in-memory dictionary
+        # Store the discovered service address in cache
+        services_cache[service] = service_address
         print(f"Service address for {service} added to cache")
 
-    # Check for cached response
+    # Construct the cache key and attempt to retrieve the cached response
     cache_key = f"{service}_{path}_response" if path else f"{service}_response"
     cached_response = redis_conn.get(cache_key)
     if cached_response:
-        print(f"Cache hit for {service}, {path}")
+        print(f"Cache hit for {service}, {path}. Data from cache: {cached_response}")
+        print("This will be from cache.")
         return Response(cached_response, mimetype='application/json'), 200
+    else:
+        print("Cache miss, forwarding request")
 
-    print("Cache miss, forwarding request")
+    # If not in cache, forward the request
     forward_url = construct_forward_url(service_address, service, path)
     print(f"Forwarding request to {forward_url}")
-
     response = forward_request(forward_url, request)
     print(f"Received response from {forward_url} with status code {response.status_code}")
 
+    # Handle caching operations based on the response
     handle_cache_operations(service, path, request, response)
 
     return Response(response.content, mimetype='application/json'), response.status_code
+
 
 
 def get_service_address_from_cache(service):
@@ -124,7 +132,7 @@ def get_service_address_from_cache(service):
 def get_service_address_from_discovery(service):
     try:
         print(f"Calling Service Discovery to find service address for {service}")
-        response = call_service_discovery(f"{SERVICE_DISCOVERY_URL}/discover/{service}")
+        response = call_service_discovery(f"{SERVICE_DISCOVERY_URL}discover/{service}")
         if response.status_code == 200:
             print(f"Service Discovery found service address for {service}")
             return response.json().get("service_address")

@@ -7,13 +7,6 @@ from flask import Flask, jsonify, request, Response
 from flask_limiter.util import get_remote_address
 from flask_limiter import Limiter
 import pybreaker
-
-# Circuit Breaker Configuration
-circuit_breaker = pybreaker.CircuitBreaker(
-    fail_max=3,  # number of failures before changing to open state
-    reset_timeout=10  # seconds after which the state should change from open to half-open
-)
-
 # Choose the config based on the environment variable
 config_mode = os.environ.get('CONFIG_MODE', 'default')
 if config_mode == 'docker':
@@ -24,6 +17,14 @@ else:
     import gatewayConfigDefault as gatewayConfig
 
     print("Using Default Configuration")
+
+
+# Circuit Breaker Configuration
+circuit_breaker = pybreaker.CircuitBreaker(
+    fail_max=3,  # number of failures before changing to open state
+    reset_timeout=10  # seconds after which the state should change from open to half-open
+)
+
 
 logging.basicConfig(level=logging.INFO)
 
@@ -41,6 +42,16 @@ limiter = Limiter(
     default_limits=["10 per minute"],
     storage_uri=f"redis://{gatewayConfig.REDIS_HOST}:{gatewayConfig.REDIS_PORT}/{gatewayConfig.REDIS_DB}",
 )
+
+@app.route('/health', methods=['GET'])
+def status():
+    return jsonify({"health": "Api gateway is up and running!"}), 200
+
+
+@app.route('/clear-cache', methods=['POST'])
+def clear_cache():
+    redis_conn.flushdb()
+    return jsonify({"status": "Cache cleared successfully"}), 200
 
 
 # Exemption logic (keep this as-is, as per your instructions)
@@ -164,17 +175,6 @@ def handle_cache_operations(service, path, req, res):
     if req.method == "GET":
         cache_key = f"{req.method}_{service}_{path}_response" if path else f"{req.method}_{service}_response"
         redis_conn.setex(cache_key, cache_expiration_time, res.content)  # Set cache with expiration time
-
-
-@app.route('/health', methods=['GET'])
-def status():
-    return jsonify({"health": "Api gateway is up and running!"}), 200
-
-
-@app.route('/clear-cache', methods=['POST'])
-def clear_cache():
-    redis_conn.flushdb()
-    return jsonify({"status": "Cache cleared successfully"}), 200
 
 
 if __name__ == '__main__':

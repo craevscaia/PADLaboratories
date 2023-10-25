@@ -840,3 +840,5 @@ Laboratory1/APIGateway/pyvenv.cfg
 # End of https://www.toptal.com/developers/gitignore/api/pycharm,pycharm+all,python
 # End of https://www.toptal.com/developers/gitignore/api/rider,dotnetcore,csharp
 *.cfg
+Laboratory1/APIGateway/pyvenv.cfg
+*.cfg

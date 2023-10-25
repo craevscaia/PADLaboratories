@@ -49,26 +49,38 @@ def register_service():
     name = data.get('name')
     url = data.get('url')
 
-    if not redis_conn.get(name):
-        logging.info(f"New service {name} registered with url {url}")
+    if not redis_conn.exists(name):
+        print(f"New service {name} registered with url {url}")
+        redis_conn.rpush(name, url)  # Store the service URL in a list
     else:
-        logging.info(f"Service {name} updated with new url {url}")
+        # Check if the URL is already registered
+        if not redis_conn.sismember(f"{name}_set", url):
+            print(f"New instance of service {name} registered with url {url}")
+            redis_conn.rpush(name, url)  # Store the service URL in a list
+            redis_conn.sadd(f"{name}_set", url)  # Store the service URL in a set for quick lookup
+        else:
+            print(f"Instance of service {name} with url {url} is already registered")
 
-    redis_conn.set(name, url)
     return jsonify({"message": "Registered successfully"}), 200
 
 
 @app.route('/discover/<service>', methods=['GET'])
 @limiter.limit("10 per second")
 def discover_service(service):
-    address = redis_conn.get(service)
-    if address:
-        address = address.decode('utf-8')  # Decode the byte data to string
-        logging.info(f"Service {service} discovered. Directing to address {address}")
-        return jsonify({"service_address": address}), 200
-    else:
-        logging.warning(f"Service {service} not found")
+    service_urls = [url.decode('utf-8') for url in redis_conn.lrange(service, 0, -1)]
+
+    if not service_urls:
+        print(f"Service {service} not found")
         return jsonify({"error": f"Service {service} not found"}), 404
+
+    if service not in round_robin_store:
+        round_robin_store[service] = 0
+    else:
+        round_robin_store[service] = (round_robin_store[service] + 1) % len(service_urls)
+
+    address = service_urls[round_robin_store[service]]
+    print(f"Service {service} discovered. Directing to address {address}")
+    return jsonify({"service_address": address}), 200
 
 
 @app.route('/health', methods=['GET'])
@@ -80,7 +92,7 @@ def status():
 # Too Many Requests
 @app.errorhandler(429)
 def ratelimit_error(e):
-    logging.warning(f"ALERT: Critical load reached from IP {get_remote_address()}")
+    print(f"ALERT: Critical load reached from IP {get_remote_address()}")
     return jsonify(error="ratelimit exceeded"), 429
 
 
@@ -91,10 +103,10 @@ def health_check_services():
             try:
                 response = requests.get(f"{service_url}/health", timeout=5)
                 if response.status_code != 200:
-                    logging.warning(f"Removing unhealthy instance: {service_url} of service {service_name}")
+                    print(f"Removing unhealthy instance: {service_url} of service {service_name}")
                     redis_conn.lrem(service_name, 1, service_url)  # Removes the unhealthy service URL from Redis
             except requests.RequestException:
-                logging.warning(f"Removing unreachable instance: {service_url} of service {service_name}")
+                print(f"Removing unreachable instance: {service_url} of service {service_name}")
                 redis_conn.lrem(service_name, 1, service_url)  # Removes the unreachable service URL from Redis
 
 
@@ -103,5 +115,5 @@ if __name__ == '__main__':
     scheduler.add_job(health_check_services, 'interval', minutes=5)  # Run health check every 5 minutes.
     scheduler.start()
 
-    logging.info(f"Starting Service Discovery on port {serviceConfig.FLASK_PORT}")
+    print(f"Starting Service Discovery on port {serviceConfig.FLASK_PORT}")
     app.run(host=serviceConfig.FLASK_HOST, port=serviceConfig.FLASK_PORT, debug=True)

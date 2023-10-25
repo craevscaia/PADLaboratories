@@ -11,11 +11,9 @@ import pybreaker
 config_mode = os.environ.get('CONFIG_MODE', 'default')
 if config_mode == 'docker':
     import gatewayConfigDocker as gatewayConfig
-
     print("Using Docker Configuration")
 else:
     import gatewayConfigDefault as gatewayConfig
-
     print("Using Default Configuration")
 
 
@@ -45,12 +43,15 @@ limiter = Limiter(
 
 @app.route('/health', methods=['GET'])
 def status():
+    print("Health check endpoint hit")
     return jsonify({"health": "Api gateway is up and running!"}), 200
 
 
 @app.route('/clear-cache', methods=['POST'])
 def clear_cache():
+    print("Clearing the cache")
     redis_conn.flushdb()
+    print("Cache cleared successfully")
     return jsonify({"status": "Cache cleared successfully"}), 200
 
 
@@ -61,13 +62,15 @@ def exempt_users():
 
 
 def check_service_discovery_health():
+    print("Checking Service Discovery Health")
     retries = 5
     backoff_factor = 2  # Time delay factor
     for i in range(retries):
         try:
+            print(f"Service Discovery Health Check Attempt {i + 1}")
             response = requests.get(f"{SERVICE_DISCOVERY_URL}/health", timeout=gatewayConfig.REQUEST_TIMEOUT)
             if response.status_code == 200:
-                logging.info("Service Discovery is healthy and running.")
+                print("Service Discovery is healthy and running.")
                 return True
             else:
                 logging.warning(f"Service Discovery returned status {response.status_code}. Retrying...")
@@ -75,31 +78,39 @@ def check_service_discovery_health():
         except requests.RequestException as e:
             logging.warning(f"Failed to connect to Service Discovery. Error: {e}. Retrying...")
             time.sleep(i * backoff_factor)  # Exponential backoff
-    logging.warning("Failed to connect to Service Discovery after multiple retries. Starting API Gateway with caution.")
+    print("Failed to connect to Service Discovery after multiple retries. Starting API Gateway with caution.")
     return False
 
 
 @app.route('/<service>/', defaults={'path': ''}, methods=['GET', 'POST', 'PUT', 'DELETE'])
 @app.route('/<service>/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE'])
 def proxy(service, path=''):
+    print(f"Received request for service: {service}, path: {path}")
     service_address = get_service_address_from_cache(service)
 
     if not service_address:
+        print(f"Service address for {service} not found in cache, querying Service Discovery")
         service_address = get_service_address_from_discovery(service)
 
         if not service_address:
+            print(f"Service {service} not found in Service Discovery")
             return jsonify({"error": f"Service {service} not found"}), 404
         services_cache[service] = service_address  # Store in in-memory dictionary
+        print(f"Service address for {service} added to cache")
 
     # Check for cached response
     cache_key = f"{service}_{path}_response" if path else f"{service}_response"
     cached_response = redis_conn.get(cache_key)
     if cached_response:
+        print(f"Cache hit for {service}, {path}")
         return Response(cached_response, mimetype='application/json'), 200
 
+    print("Cache miss, forwarding request")
     forward_url = construct_forward_url(service_address, service, path)
+    print(f"Forwarding request to {forward_url}")
 
     response = forward_request(forward_url, request)
+    print(f"Received response from {forward_url} with status code {response.status_code}")
 
     handle_cache_operations(service, path, request, response)
 
@@ -112,15 +123,19 @@ def get_service_address_from_cache(service):
 
 def get_service_address_from_discovery(service):
     try:
-        response = call_service_discovery(f"{SERVICE_DISCOVERY_URL}discover/{service}")
+        print(f"Calling Service Discovery to find service address for {service}")
+        response = call_service_discovery(f"{SERVICE_DISCOVERY_URL}/discover/{service}")
         if response.status_code == 200:
+            print(f"Service Discovery found service address for {service}")
             return response.json().get("service_address")
-        return None
+        else:
+            logging.warning(f"Service Discovery did not find service address for {service}, status code {response.status_code}")
+            return None
     except pybreaker.CircuitBreakerError:
-        logging.error("Circuit Breaker is open, not making request to Service Discovery")
+        print("Circuit Breaker is open, not making request to Service Discovery")
         return None
     except Exception as e:
-        logging.error(f"Failed to call Service Discovery. Error: {e}")
+        print(f"Failed to call Service Discovery. Error: {e}")
         return None
 
 
@@ -143,6 +158,7 @@ def construct_forward_url(service_address, service, path):
 
 def forward_request(url, req):
     try:
+        print(f"Forwarding request to {url}")
         response = requests.request(
             method=req.method,
             url=url,
@@ -152,16 +168,17 @@ def forward_request(url, req):
             allow_redirects=False,
             timeout=gatewayConfig.REQUEST_TIMEOUT
         )
+        print(f"Received response from {url} with status code {response.status_code}")
         return response
     except pybreaker.CircuitBreakerError:
-        logging.error("Circuit Breaker is open, not making request")
+        print("Circuit Breaker is open, not making request")
         return Response(jsonify({"error": "Circuit Breaker is open, not making request"}),
                         status=503)  # 503 Service Unavailable
     except requests.exceptions.Timeout:
-        logging.error(f"Request to {url} timed out.")
+        print(f"Request to {url} timed out.")
         return Response(jsonify({"error": "Request timed out"}), status=504)  # 504 Gateway Timeout
     except Exception as e:
-        logging.error(f"Failed to forward request. Error: {e}")
+        print(f"Failed to forward request. Error: {e}")
     return Response(jsonify({"error": "Service error"}), status=500)
 
 
@@ -179,5 +196,5 @@ def handle_cache_operations(service, path, req, res):
 
 if __name__ == '__main__':
     check_service_discovery_health()
-    logging.info(f"Starting API Gateway on port {gatewayConfig.FLASK_PORT}")
+    print(f"Starting API Gateway on port {gatewayConfig.FLASK_PORT}")
     app.run(host=gatewayConfig.FLASK_HOST, port=gatewayConfig.FLASK_PORT, debug=True)

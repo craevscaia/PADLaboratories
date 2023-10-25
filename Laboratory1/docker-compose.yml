@@ -50,21 +50,7 @@ services:
       - orderdb
     environment:
       - ASPNETCORE_ENVIRONMENT=Deploy
-    
-  orderservice1:
-    build:
-      context: ./OrderService
-      dockerfile: Dockerfile
-    ports:
-      - "5255:80"
-    networks:
-      - lab-network
-    depends_on:
-      - apigateway
-      - orderdb
-    environment:
-      - ASPNETCORE_ENVIRONMENT=Deploy
-
+  
   bookservice:
     build:
       context: ./BookService
@@ -79,19 +65,6 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Deploy
   
-  bookservice1:
-    build:
-      context: ./BookService
-      dockerfile: Dockerfile
-    ports:
-      - "5005:80"
-    networks:
-      - lab-network
-    depends_on:
-      - apigateway
-      - bookdb
-    environment:
-      - ASPNETCORE_ENVIRONMENT=Deploy
   
   orderdb:
     image: postgres:latest

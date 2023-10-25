@@ -4,6 +4,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BookService", "BookService\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OrderService", "OrderService\OrderService.csproj", "{9DB4FA92-75D9-4E9C-AAE9-AC46EB07536A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BookService", "BookService1\BookService.csproj", "{8E3B9354-A651-4394-B67C-A9F0DB87D4C0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OrderService", "OrderService1\OrderService.csproj", "{91F291C7-E1EA-4935-8DA0-6CE873935263}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -18,5 +22,13 @@ Global
 		{9DB4FA92-75D9-4E9C-AAE9-AC46EB07536A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{9DB4FA92-75D9-4E9C-AAE9-AC46EB07536A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{9DB4FA92-75D9-4E9C-AAE9-AC46EB07536A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8E3B9354-A651-4394-B67C-A9F0DB87D4C0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8E3B9354-A651-4394-B67C-A9F0DB87D4C0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8E3B9354-A651-4394-B67C-A9F0DB87D4C0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8E3B9354-A651-4394-B67C-A9F0DB87D4C0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{91F291C7-E1EA-4935-8DA0-6CE873935263}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{91F291C7-E1EA-4935-8DA0-6CE873935263}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{91F291C7-E1EA-4935-8DA0-6CE873935263}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{91F291C7-E1EA-4935-8DA0-6CE873935263}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

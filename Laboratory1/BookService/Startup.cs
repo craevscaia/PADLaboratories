@@ -40,6 +40,13 @@ public class Startup
 
     public void Configure(WebApplication app)
     {
+        using var scope = app.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<BookContext>();
+        
+        Console.WriteLine(dbContext.Database.CanConnect()
+            ? "Successfully connected to the database."
+            : "Unable to connect to the database.");
+
         if (app.Environment.IsDevelopment())
         {
             app.UseSwagger();

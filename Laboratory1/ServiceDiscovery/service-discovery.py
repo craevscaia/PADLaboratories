@@ -68,6 +68,28 @@ def register_service():
     return jsonify({"message": "Registered successfully"}), 200
 
 
+@app.route('/discover', methods=['GET'])
+def list_services():
+    services = {}
+    for key in redis_conn.keys("*_list"):
+        service_name = key.decode('utf-8').replace("_list", "")
+        service_urls = [url.decode('utf-8') for url in redis_conn.lrange(key, 0, -1)]
+        services[service_name] = service_urls
+
+    return jsonify(services), 200
+
+
+@app.route('/clear_cache', methods=['POST'])
+def clear_cache():
+    try:
+        redis_conn.flushdb()
+        print("Cache cleared successfully")
+        return jsonify({"message": "Cache cleared successfully"}), 200
+    except Exception as e:
+        print(f"Failed to clear cache: {str(e)}")
+        return jsonify({"error": "Failed to clear cache", "details": str(e)}), 500
+
+
 @app.route('/discover/<service>', methods=['GET'])
 @limiter.limit("10 per second")
 def discover_service(service):
@@ -86,7 +108,6 @@ def discover_service(service):
     address = service_urls[round_robin_store[service]]
     print(f"Service {service} discovered. Directing to address {address}")
     return jsonify({"service_address": address}), 200
-
 
 
 @app.route('/health', methods=['GET'])
@@ -112,10 +133,12 @@ def health_check_services():
                 response = requests.get(f"{service_url}/health", timeout=5)
                 if response.status_code != 200:
                     print(f"Removing unhealthy instance: {service_url} of service {service_name}")
-                    redis_conn.lrem(service_name, 1, service_url.encode('utf-8'))  # Removes the unhealthy service URL from Redis
+                    redis_conn.lrem(service_name, 1,
+                                    service_url.encode('utf-8'))  # Removes the unhealthy service URL from Redis
             except requests.RequestException:
                 print(f"Removing unreachable instance: {service_url} of service {service_name}")
-                redis_conn.lrem(service_name, 1, service_url.encode('utf-8'))  # Removes the unreachable service URL from Redis
+                redis_conn.lrem(service_name, 1,
+                                service_url.encode('utf-8'))  # Removes the unreachable service URL from Redis
 
 
 if __name__ == '__main__':

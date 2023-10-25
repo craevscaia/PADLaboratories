@@ -7,22 +7,23 @@ from flask import Flask, jsonify, request, Response
 from flask_limiter.util import get_remote_address
 from flask_limiter import Limiter
 import pybreaker
+
 # Choose the config based on the environment variable
 config_mode = os.environ.get('CONFIG_MODE', 'default')
 if config_mode == 'docker':
     import gatewayConfigDocker as gatewayConfig
+
     print("Using Docker Configuration")
 else:
     import gatewayConfigDefault as gatewayConfig
-    print("Using Default Configuration")
 
+    print("Using Default Configuration")
 
 # Circuit Breaker Configuration
 circuit_breaker = pybreaker.CircuitBreaker(
     fail_max=3,  # number of failures before changing to open state
     reset_timeout=10  # seconds after which the state should change from open to half-open
 )
-
 
 logging.basicConfig(level=logging.INFO)
 
@@ -40,6 +41,7 @@ limiter = Limiter(
     default_limits=["10 per minute"],
     storage_uri=f"redis://{gatewayConfig.REDIS_HOST}:{gatewayConfig.REDIS_PORT}/{gatewayConfig.REDIS_DB}",
 )
+
 
 @app.route('/health', methods=['GET'])
 def status():
@@ -87,27 +89,18 @@ def check_service_discovery_health():
 def proxy(service, path=''):
     print(f"Received request for service: {service}, path: {path}")
 
-    # Attempt to retrieve the service address from cache
-    service_address = get_service_address_from_cache(service)
-    if service_address:
-        print("Service address found in cache.")
-    else:
-        # If not in cache, query the Service Discovery
-        print(f"Service address for {service} not found in cache, querying Service Discovery")
-        service_address = get_service_address_from_discovery(service)
-        if not service_address:
-            print(f"Service {service} not found in Service Discovery")
-            return jsonify({"error": f"Service {service} not found"}), 404
-        # Store the discovered service address in cache
-        services_cache[service] = service_address
-        print(f"Service address for {service} added to cache")
+    # Query the Service Discovery for the service address
+    print(f"Querying Service Discovery to find service address for {service}")
+    service_address = get_service_address_from_discovery(service)
+    if not service_address:
+        print(f"Service {service} not found in Service Discovery")
+        return jsonify({"error": f"Service {service} not found"}), 404
 
     # Construct the cache key and attempt to retrieve the cached response
     cache_key = f"{service}_{path}_response" if path else f"{service}_response"
     cached_response = redis_conn.get(cache_key)
     if cached_response:
         print(f"Cache hit for {service}, {path}. Data from cache: {cached_response}")
-        print("This will be from cache.")
         return Response(cached_response, mimetype='application/json'), 200
     else:
         print("Cache miss, forwarding request")
@@ -124,7 +117,6 @@ def proxy(service, path=''):
     return Response(response.content, mimetype='application/json'), response.status_code
 
 
-
 def get_service_address_from_cache(service):
     return services_cache.get(service)
 
@@ -137,7 +129,8 @@ def get_service_address_from_discovery(service):
             print(f"Service Discovery found service address for {service}")
             return response.json().get("service_address")
         else:
-            logging.warning(f"Service Discovery did not find service address for {service}, status code {response.status_code}")
+            logging.warning(
+                f"Service Discovery did not find service address for {service}, status code {response.status_code}")
             return None
     except pybreaker.CircuitBreakerError:
         print("Circuit Breaker is open, not making request to Service Discovery")

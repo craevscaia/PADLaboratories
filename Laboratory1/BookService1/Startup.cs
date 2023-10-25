@@ -1,9 +1,10 @@
 using AspNetCoreRateLimit;
+using BookService.Context;
+using BookService.Infrastructure;
+using BookService.Middleware;
 using Microsoft.EntityFrameworkCore;
-using OrderService.Context;
-using OrderService.Infrastructure;
-using OrderService.Middleware;
-namespace OrderService;
+
+namespace BookService;
 
 public class Startup
 {
@@ -23,7 +24,7 @@ public class Startup
     public void ConfigureServices(IServiceCollection services)
     {
         // Database context
-        services.AddDbContext<OrderContext>(options =>
+        services.AddDbContext<BookContext>(options =>
             options.UseNpgsql(Configuration.GetConnectionString("DefaultConnection")));
 
         // MVC controllers
@@ -40,7 +41,7 @@ public class Startup
     public void Configure(WebApplication app)
     {
         using var scope = app.Services.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<OrderContext>();
+        var dbContext = scope.ServiceProvider.GetRequiredService<BookContext>();
         
         Console.WriteLine(dbContext.Database.CanConnect()
             ? "Successfully connected to the database."
@@ -51,14 +52,12 @@ public class Startup
             app.UseSwagger();
             app.UseSwaggerUI();
         }
-
+        
         app.UseMiddleware<ConcurrencyLimiterMiddleware>();
         app.UseMiddleware<RequestTimeoutMiddleware>();
 
         app.MapHealthChecks("/health");
-        
-        //2 requests per second
-        app.UseIpRateLimiting(); // concurrency task limit
+        app.UseIpRateLimiting();
 
         app.UseHsts();
         app.UseAuthorization();

@@ -101,15 +101,14 @@ def get_service_address_from_cache(service):
 
 def get_service_address_from_discovery(service):
     try:
-        # Make a request to the service discovery's discover endpoint
-        response = requests.get(f"{SERVICE_DISCOVERY_URL}/discover/{service}", timeout=gatewayConfig.REQUEST_TIMEOUT)
+        response = call_service_discovery(f"{SERVICE_DISCOVERY_URL}discover/{service}")
         if response.status_code == 200:
-            address = response.json().get('service_address')
-            return address
-        else:
-            logging.warning(f"Service Discovery for {service} returned status {response.status_code}.")
-            return None
-    except requests.RequestException as e:
+            return response.json().get("service_address")
+        return None
+    except pybreaker.CircuitBreakerError:
+        logging.error("Circuit Breaker is open, not making request to Service Discovery")
+        return None
+    except Exception as e:
         logging.error(f"Failed to call Service Discovery. Error: {e}")
         return None
 
@@ -159,7 +158,7 @@ def handle_cache_operations(service, path, req, res):
     cache_expiration_time = 300  # 5 minutes, can be set based on your needs
 
     if req.method in ["POST", "PUT", "DELETE"]:
-        cache_key = f"{req.method}_{service}_{path}_response" if path else f"{req.method}_{service}_response"
+        cache_key = f"{service}_{path}_response" if path else f"{service}_response"
         redis_conn.delete(cache_key)  # Clear only the response cache
 
     if req.method == "GET":

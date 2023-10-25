@@ -49,40 +49,21 @@ def register_service():
     name = data.get('name')
     url = data.get('url')
 
-    # Check if the service already exists
-    existing_service_urls = redis_conn.lrange(name, 0, -1)
-    if url.encode('utf-8') not in existing_service_urls:
-        logging.info(f"New instance for service {name} registered with url {url}")
-        redis_conn.rpush(name, url)  # Add the new instance to the end of the list
+    if not redis_conn.get(name):
+        logging.info(f"New service {name} registered with url {url}")
     else:
-        logging.info(f"Instance with URL {url} for service {name} already exists")
+        logging.info(f"Service {name} updated with new url {url}")
 
+    redis_conn.set(name, url)
     return jsonify({"message": "Registered successfully"}), 200
-
-
-@app.route('/services', methods=['GET'])
-@limiter.limit("10 per minute")
-def get_all_services():
-    services = {}
-    for service_name in redis_conn.keys():
-        service_urls = [url.decode('utf-8') for url in redis_conn.lrange(service_name, 0, -1)]
-        services[service_name.decode('utf-8')] = service_urls
-
-    return jsonify(services), 200
 
 
 @app.route('/discover/<service>', methods=['GET'])
 @limiter.limit("10 per second")
 def discover_service(service):
-    urls = redis_conn.lrange(service, 0, -1)
-    if urls:
-        if service not in round_robin_store:
-            round_robin_store[service] = 0
-        address = urls[round_robin_store[service]].decode('utf-8')
-
-        # Update the round-robin index for the next call
-        round_robin_store[service] = (round_robin_store[service] + 1) % len(urls)
-
+    address = redis_conn.get(service)
+    if address:
+        address = address.decode('utf-8')  # Decode the byte data to string
         logging.info(f"Service {service} discovered. Directing to address {address}")
         return jsonify({"service_address": address}), 200
     else:

@@ -13,4 +13,4 @@ FLASK_PORT = int(os.environ.get('FLASK_PORT', 5000))
 
 # Service Discovery
 SERVICE_DISCOVERY = "http://servicediscovery:6000/"
-REQUEST_TIMEOUT = 5
+REQUEST_TIMEOUT = 60

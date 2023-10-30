@@ -1,12 +1,14 @@
 import logging
 import os
 import time
-import requests
-import redis
-from flask import Flask, jsonify, request, Response
-from flask_limiter.util import get_remote_address
-from flask_limiter import Limiter
+from html import escape
+
 import pybreaker
+import redis
+import requests
+from flask import Flask, jsonify, request, Response
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 # Choose the config based on the environment variable
 config_mode = os.environ.get('CONFIG_MODE', 'default')
@@ -47,6 +49,21 @@ limiter = Limiter(
 def status():
     print("Health check endpoint hit")
     return jsonify({"health": "Api gateway is up and running!"}), 200
+
+
+@app.route('/cache', methods=['GET'])
+def get_cache():
+    cache_data = {}
+    for key in redis_conn.scan_iter():
+        value = redis_conn.get(key)
+        # Convert bytes to string if necessary
+        str_key = key.decode('utf-8') if isinstance(key, bytes) else str(key)
+        str_value = value.decode('utf-8') if isinstance(value, bytes) else str(value)
+        # Escape HTML characters
+        escaped_key = escape(str_key)
+        escaped_value = escape(str_value)
+        cache_data[escaped_key] = escaped_value
+    return jsonify(cache_data)
 
 
 @app.route('/clear-cache', methods=['POST'])
@@ -97,7 +114,7 @@ def proxy(service, path=''):
         return jsonify({"error": f"Service {service} not found"}), 404
 
     # Construct the cache key and attempt to retrieve the cached response
-    cache_key = f"{service}_{path}_response" if path else f"{service}_response"
+    cache_key = f"GET_{service}_{path}_response" if path else f"GET_{service}_response"  # Consistent cache key
     cached_response = redis_conn.get(cache_key)
     if cached_response:
         print(f"Cache hit for {service}, {path}. Data from cache: {cached_response}")
@@ -115,6 +132,7 @@ def proxy(service, path=''):
     handle_cache_operations(service, path, request, response)
 
     return Response(response.content, mimetype='application/json'), response.status_code
+
 
 
 def get_service_address_from_cache(service):
@@ -177,7 +195,8 @@ def forward_request(url, req):
                         status=503)  # 503 Service Unavailable
     except requests.exceptions.Timeout:
         print(f"Request to {url} timed out.")
-        return Response(jsonify({"error": "Request timed out"}), status=504)  # 504 Gateway Timeout
+        return Response("Timeout", mimetype='application/json'), 504
+
     except Exception as e:
         print(f"Failed to forward request. Error: {e}")
     return Response(jsonify({"error": "Service error"}), status=500)

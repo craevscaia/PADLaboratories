@@ -143,7 +143,7 @@ def health_check_services():
 
 if __name__ == '__main__':
     scheduler = BackgroundScheduler()
-    scheduler.add_job(health_check_services, 'interval', minutes=5)  # Run health check every 5 minutes.
+    scheduler.add_job(health_check_services, 'interval', minutes=15)  # Run health check every 5 minutes.
     scheduler.start()
 
     print(f"Starting Service Discovery on port {serviceConfig.FLASK_PORT}")

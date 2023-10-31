@@ -19,7 +19,7 @@
                 Console.WriteLine($"Is running on docker: {isDocker}");
 
                 // Use the service name as the host when running in Docker
-                var host = isDocker ? "bookservice" : "localhost";
+                var host = isDocker ? "orderservice" : "localhost";
                 var port = Environment.GetEnvironmentVariable("ASPNETCORE_URLS")?.Split(":").Last() ?? "80";
 
                 Console.WriteLine($"Host: {host} Port: {port}");

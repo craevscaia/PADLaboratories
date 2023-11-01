@@ -64,6 +64,7 @@ simultaneously, transforms it, and then sends it to Elasticsearch.
 **What it is:** A 2 Phase Commit (2PC) is a type of atomic transaction that ensures 
 consistency across distributed systems. The protocol achieves its goal even when some of the participants or
 the coordinator fail during the protocol.
+
 **How it relates:** Since there are two services (BookService & OrderService) 
 that might need to update more than one database, using 2PC will ensure that changes 
 to both databases are consistent.
@@ -85,6 +86,7 @@ the mapping of keys to slots.
 
 **What it is:** Consistent hashing is a strategy to distribute data across multiple nodes 
 (like cache servers) in a way that minimizes data reshuffling when nodes are added or removed.
+
 **How it relates:** If you're scaling the cache (like the one in APIGateway), 
 consistent hashing will help in effectively distributing the cache data.
 
@@ -105,6 +107,7 @@ ensure high availability.
 
 **What it is:** Sagas are a way to manage long-running transactions by breaking them 
 into smaller, isolated transactions.
+
 **How it relates:** For complex business operations that span across services, 
 using Sagas ensures that even if one step fails, the entire operation can be rolled back 
 or compensated.
@@ -112,10 +115,12 @@ or compensated.
 ### Database redundancy/replication + failover (one database, min 4 repl.)
 
 **What it is:** This ensures that the databases are always available and can handle failures.
+
 **How it relates:** Both BookDb and OrderDb in the system should have multiple replicas 
 (at least 4 as mentioned). If one fails, traffic can be rerouted to a replica.
 
 ### Create a Data Warehouse that will be periodically updated with all data from the databases.
 
 **What it is:** A large centralized database that integrates data from different sources.
+
 **How it relates:** Periodically, you can move data from both BookDb and OrderDb to this warehouse for complex queries, analytics, and reporting.

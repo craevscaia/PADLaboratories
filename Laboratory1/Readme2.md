@@ -112,6 +112,9 @@ into smaller, isolated transactions.
 using Sagas ensures that even if one step fails, the entire operation can be rolled back 
 or compensated.
 
+Orchestration- one central point that notify service what to do and based on the response
+tells which will be the next step
+
 ### Database redundancy/replication + failover (one database, min 4 repl.)
 
 **What it is:** This ensures that the databases are always available and can handle failures.
@@ -124,3 +127,5 @@ or compensated.
 **What it is:** A large centralized database that integrates data from different sources.
 
 **How it relates:** Periodically, you can move data from both BookDb and OrderDb to this warehouse for complex queries, analytics, and reporting.
+
+![img.png](img.png)

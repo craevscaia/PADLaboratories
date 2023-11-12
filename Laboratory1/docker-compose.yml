@@ -37,7 +37,7 @@ services:
       - CONFIG_MODE=docker
 
 
-  orderservice:
+  orderservice1:
     build:
       context: ./OrderService
       dockerfile: Dockerfile
@@ -50,9 +50,10 @@ services:
       - orderdb
     environment:
       - ASPNETCORE_ENVIRONMENT=Deploy
+      - SERVICE_NAME=orderservice1
   
   
-  orderservice1:
+  orderservice2:
     build:
       context: ./OrderService
       dockerfile: Dockerfile
@@ -65,8 +66,9 @@ services:
       - orderdb
     environment:
       - ASPNETCORE_ENVIRONMENT=Deploy
-  
-  bookservice:
+      - SERVICE_NAME=orderservice2
+
+  bookservice1:
     build:
       context: ./BookService
       dockerfile: Dockerfile
@@ -79,8 +81,9 @@ services:
       - bookdb
     environment:
       - ASPNETCORE_ENVIRONMENT=Deploy
-  
-  bookservice1:
+      - SERVICE_NAME=bookservice1
+
+  bookservice2:
     build:
       context: ./BookService
       dockerfile: Dockerfile
@@ -93,6 +96,7 @@ services:
       - bookdb
     environment:
       - ASPNETCORE_ENVIRONMENT=Deploy
+      - SERVICE_NAME=bookservice2
         
   orderdb:
     image: postgres:latest

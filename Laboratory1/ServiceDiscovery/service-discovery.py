@@ -7,21 +7,22 @@ from flask_limiter import Limiter
 from apscheduler.schedulers.background import BackgroundScheduler
 import requests
 
+app = Flask(__name__)
+
 # Choose the config based on the environment variable
 config_mode = os.environ.get('CONFIG_MODE', 'default')
 if config_mode == 'docker':
     import serviceConfigDocker as serviceConfig
 
-    print("Using Docker Configuration")
+    app.logger.info("Using Docker Configuration")
 else:
     import serviceConfigDefault as serviceConfig
 
-    print("Using Default Configuration")
+    app.logger.info("Using Default Configuration")
 
 logging.basicConfig(level=logging.INFO)
 
 # Flask application.
-app = Flask(__name__)
 redis_conn = redis.StrictRedis(host=serviceConfig.REDIS_HOST, port=serviceConfig.REDIS_PORT, db=serviceConfig.REDIS_DB)
 
 
@@ -53,17 +54,17 @@ def register_service():
     service_set_key = f"{name}_set"
 
     if not redis_conn.exists(service_list_key):
-        print(f"New service {name} registered with url {url}")
+        app.logger.info(f"New service {name} registered with url {url}")
         redis_conn.rpush(service_list_key, url)  # Store the service URL in a list
         redis_conn.sadd(service_set_key, url)  # Also store the service URL in a set
     else:
         # Check if the URL is already registered
         if not redis_conn.sismember(service_set_key, url):
-            print(f"New instance of service {name} registered with url {url}")
+            app.logger.info(f"New instance of service {name} registered with url {url}")
             redis_conn.rpush(service_list_key, url)  # Store the service URL in a list
             redis_conn.sadd(service_set_key, url)  # Also store the service URL in a set
         else:
-            print(f"Instance of service {name} with url {url} is already registered")
+            app.logger.info(f"Instance of service {name} with url {url} is already registered")
 
     return jsonify({"message": "Registered successfully"}), 200
 
@@ -83,10 +84,10 @@ def list_services():
 def clear_cache():
     try:
         redis_conn.flushdb()
-        print("Cache cleared successfully")
+        app.logger.info("Cache cleared successfully")
         return jsonify({"message": "Cache cleared successfully"}), 200
     except Exception as e:
-        print(f"Failed to clear cache: {str(e)}")
+        app.logger.info(f"Failed to clear cache: {str(e)}")
         return jsonify({"error": "Failed to clear cache", "details": str(e)}), 500
 
 
@@ -97,7 +98,7 @@ def discover_service(service):
     service_urls = [url.decode('utf-8') for url in redis_conn.lrange(service_list_key, 0, -1)]
 
     if not service_urls:
-        print(f"Service {service} not found")
+        app.logger.info(f"Service {service} not found")
         return jsonify({"error": f"Service {service} not found"}), 404
 
     if service not in round_robin_store:
@@ -106,7 +107,7 @@ def discover_service(service):
         round_robin_store[service] = (round_robin_store[service] + 1) % len(service_urls)
 
     address = service_urls[round_robin_store[service]]
-    print(f"Service {service} discovered. Directing to address {address}")
+    app.logger.info(f"Service {service} discovered. Directing to address {address}")
     return jsonify({"service_address": address}), 200
 
 
@@ -119,7 +120,7 @@ def status():
 # Too Many Requests
 @app.errorhandler(429)
 def ratelimit_error(e):
-    print(f"ALERT: Critical load reached from IP {get_remote_address()}")
+    app.logger.info(f"ALERT: Critical load reached from IP {get_remote_address()}")
     return jsonify(error="ratelimit exceeded"), 429
 
 
@@ -132,11 +133,11 @@ def health_check_services():
             try:
                 response = requests.get(f"{service_url}/health", timeout=5)
                 if response.status_code != 200:
-                    print(f"Removing unhealthy instance: {service_url} of service {service_name}")
+                    app.logger.info(f"Removing unhealthy instance: {service_url} of service {service_name}")
                     redis_conn.lrem(service_name, 1,
                                     service_url.encode('utf-8'))  # Removes the unhealthy service URL from Redis
             except requests.RequestException:
-                print(f"Removing unreachable instance: {service_url} of service {service_name}")
+                app.logger.info(f"Removing unreachable instance: {service_url} of service {service_name}")
                 redis_conn.lrem(service_name, 1,
                                 service_url.encode('utf-8'))  # Removes the unreachable service URL from Redis
 
@@ -146,5 +147,5 @@ if __name__ == '__main__':
     scheduler.add_job(health_check_services, 'interval', minutes=15)  # Run health check every 5 minutes.
     scheduler.start()
 
-    print(f"Starting Service Discovery on port {serviceConfig.FLASK_PORT}")
+    app.logger.info(f"Starting Service Discovery on port {serviceConfig.FLASK_PORT}")
     app.run(host=serviceConfig.FLASK_HOST, port=serviceConfig.FLASK_PORT, debug=True)

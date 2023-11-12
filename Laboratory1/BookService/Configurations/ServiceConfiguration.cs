@@ -1,10 +1,10 @@
-﻿namespace OrderService.Configurations
+﻿namespace BookService.Configurations
 {
-    public class ServiceConfig
+    public class ServiceConfiguration
     {
         private readonly IConfiguration _configuration;
 
-        public ServiceConfig(IConfiguration configuration)
+        public ServiceConfiguration(IConfiguration configuration)
         {
             _configuration = configuration;
         }
@@ -19,7 +19,7 @@
                 Console.WriteLine($"Is running on docker: {isDocker}");
 
                 // Use the service name as the host when running in Docker
-                var host = isDocker ? "orderservice" : "localhost";
+                var host = isDocker ? "bookservice" : "localhost";
                 var port = Environment.GetEnvironmentVariable("ASPNETCORE_URLS")?.Split(":").Last() ?? "80";
 
                 Console.WriteLine($"Host: {host} Port: {port}");

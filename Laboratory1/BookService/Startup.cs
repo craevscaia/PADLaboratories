@@ -3,6 +3,7 @@ using BookService.Context;
 using BookService.Infrastructure;
 using BookService.Middleware;
 using Microsoft.EntityFrameworkCore;
+using Prometheus;
 
 namespace BookService;
 
@@ -55,7 +56,10 @@ public class Startup
         
         app.UseMiddleware<ConcurrencyLimiterMiddleware>();
         app.UseMiddleware<RequestTimeoutMiddleware>();
-
+        
+        app.UseHttpMetrics(); // This tracks metrics for HTTP requests
+        app.UseMetricServer(); // This tracks metrics for HTTP requests
+        
         app.MapHealthChecks("/health");
         app.UseIpRateLimiting();
 

@@ -1,4 +1,5 @@
 using BookService.Entities;
+using BookService.Metric;
 using BookService.Services;
 using Microsoft.AspNetCore.Mvc;
 
@@ -18,12 +19,15 @@ public class BookController : ControllerBase
     [HttpGet]
     public IEnumerable<Book> Get()
     {
+        MetricsRegistry.BookGetCounter.Inc();
         return _bookService.GetAllBooks();
     }
 
     [HttpGet("{id}")]
     public ActionResult<Book> GetBook(int id)
     {
+        MetricsRegistry.BookGetByIdCounter.Inc();
+
         var book = _bookService.GetBookById(id);
         if (book == null) return NotFound();
         return book;
@@ -46,6 +50,8 @@ public class BookController : ControllerBase
     [HttpPost]
     public ActionResult<Book> Post(Book book)
     {
+        MetricsRegistry.BookPostCounter.Inc();
+
         _bookService.AddBook(book);
         return CreatedAtAction(nameof(Get), new { id = book.Id }, book);
     }
@@ -53,6 +59,8 @@ public class BookController : ControllerBase
     [HttpPut("{id}")]
     public IActionResult Put(int id, Book book)
     {
+        MetricsRegistry.BookPutCounter.Inc();
+
         var existingBook = _bookService.GetBookById(id);
         if (existingBook == null) return NotFound();
 
@@ -67,6 +75,8 @@ public class BookController : ControllerBase
     [HttpDelete("{id}")]
     public IActionResult Delete(int id)
     {
+        MetricsRegistry.BookDeleteCounter.Inc();
+
         var existingBook = _bookService.GetBookById(id);
         if (existingBook == null) return NotFound();
 

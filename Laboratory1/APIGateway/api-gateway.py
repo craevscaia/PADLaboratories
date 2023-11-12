@@ -9,6 +9,9 @@ import requests
 from flask import Flask, jsonify, request, Response
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from prometheus_client import Counter
+from prometheus_client import Summary
+
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 
@@ -29,6 +32,10 @@ circuit_breaker = pybreaker.CircuitBreaker(
     reset_timeout=10  # seconds after which the state should change from open to half-open
 )
 
+# Create a metric to track time spent and requests made.
+REQUEST_TIME = Summary('request_processing_seconds', 'Time spent processing request')
+c = Counter('main_endpoint_calls', 'How many times the endpoint is called')
+
 redis_conn = redis.StrictRedis(host=gatewayConfig.REDIS_HOST, port=gatewayConfig.REDIS_PORT, db=gatewayConfig.REDIS_DB)
 
 SERVICE_DISCOVERY_URL = gatewayConfig.SERVICE_DISCOVERY
@@ -43,12 +50,14 @@ limiter = Limiter(
 )
 
 
+@REQUEST_TIME.time()
 @app.route('/health', methods=['GET'])
 def status():
     app.logger.info("Health check endpoint hit")
     return jsonify({"health": "Api gateway is up and running!"}), 200
 
 
+@REQUEST_TIME.time()
 @app.route('/cache', methods=['GET'])
 def get_cache():
     cache_data = {}
@@ -64,6 +73,7 @@ def get_cache():
     return jsonify(cache_data)
 
 
+@REQUEST_TIME.time()
 @app.route('/clear-cache', methods=['POST'])
 def clear_cache():
     app.logger.info("Clearing the cache")
@@ -99,9 +109,11 @@ def check_service_discovery_health():
     return False
 
 
+@REQUEST_TIME.time()
 @app.route('/<service>/', defaults={'path': ''}, methods=['GET', 'POST', 'PUT', 'DELETE'])
 @app.route('/<service>/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE'])
 def proxy(service, path=''):
+    c.inc()
     app.logger.info(f"Received request for service: {service}, path: {path}")
 
     # Query the Service Discovery for the service address
@@ -111,26 +123,40 @@ def proxy(service, path=''):
         app.logger.info(f"Service {service} not found in Service Discovery")
         return jsonify({"error": f"Service {service} not found"}), 404
 
-    # Construct the cache key and attempt to retrieve the cached response
-    cache_key = f"GET_{service}_{path}_response" if path else f"GET_{service}_response"  # Consistent cache key
-    cached_response = redis_conn.get(cache_key)
-    if cached_response:
-        app.logger.info(f"Cache hit for {service}, {path}. Data from cache: {cached_response}")
-        return Response(cached_response, mimetype='application/json'), 200
-    else:
-        app.logger.info("Cache miss, forwarding request")
+    # Initialize reroute count
+    reroute_count = 0
+    max_reroutes = 3  # Set the maximum number of reroutes before tripping the breaker
 
-    # If not in cache, forward the request
-    forward_url = construct_forward_url(service_address, service, path)
-    app.logger.info(f"Forwarding request to {forward_url}")
-    response = forward_request(forward_url, request)
-    app.logger.info(f"Received response from {forward_url} with status code {response.status_code}")
+    while reroute_count < max_reroutes:
+        # Construct the URL and forward the request
+        forward_url = construct_forward_url(service_address, service, path)
+        app.logger.info(f"Forwarding request to {forward_url}")
+        response, is_reroute = forward_request(forward_url, request)
 
-    # Handle caching operations based on the response
-    handle_cache_operations(service, path, request, response)
+        if not is_reroute:
+            # If it's not a reroute, handle caching and return the response
+            handle_cache_operations(service, path, request, response)
+            return Response(response.content, mimetype='application/json'), response.status_code
+        else:
+            # If a reroute status code is received, increment the reroute count
+            reroute_count += 1
+            app.logger.warning(
+                f"Reroute detected for {service} with status code {response.status_code}, reroute count: {reroute_count}")
 
-    return Response(response.content, mimetype='application/json'), response.status_code
+            # Check if the reroute count exceeds the maximum allowed before tripping the breaker
+            if reroute_count >= max_reroutes:
+                # Trip the circuit breaker
+                circuit_breaker.fail()
+                app.logger.error(f"Circuit breaker tripped due to {max_reroutes} consecutive reroutes for {service}.")
+                return jsonify({"error": "Service currently unavailable, please try again later."}), 503
 
+            # Short delay before retrying to prevent immediate repeated requests
+            time.sleep(1)
+
+    # If the loop exits without returning, it means the reroute count was not exceeded
+    # This is a catch-all to handle unexpected loop exit
+    app.logger.error("Unexpected exit from reroute handling loop.")
+    return jsonify({"error": "An unexpected error occurred."}), 500
 
 
 def get_service_address_from_cache(service):
@@ -173,7 +199,10 @@ def construct_forward_url(service_address, service, path):
     return f"{service_address}/{service}?{query_params}"
 
 
+# Modify the forward_request function to return both the response and a reroute indicator.
 def forward_request(url, req):
+    reroute_status_codes = {502, 503}  # Define which status codes indicate a reroute
+
     try:
         app.logger.info(f"Forwarding request to {url}")
         response = requests.request(
@@ -186,18 +215,17 @@ def forward_request(url, req):
             timeout=gatewayConfig.REQUEST_TIMEOUT
         )
         app.logger.info(f"Received response from {url} with status code {response.status_code}")
-        return response
-    except pybreaker.CircuitBreakerError:
-        app.logger.info("Circuit Breaker is open, not making request")
-        return Response(jsonify({"error": "Circuit Breaker is open, not making request"}),
-                        status=503)  # 503 Service Unavailable
-    except requests.exceptions.Timeout:
-        app.logger.info(f"Request to {url} timed out.")
-        return Response("Timeout", mimetype='application/json'), 504
+        # Check if the status code is in the reroute list
+        is_reroute = response.status_code in reroute_status_codes
+        return response, is_reroute
 
-    except Exception as e:
-        app.logger.info(f"Failed to forward request. Error: {e}")
-    return Response(jsonify({"error": "Service error"}), status=500)
+    except pybreaker.CircuitBreakerError:
+        app.logger.error("Circuit Breaker is open, not making request")
+        return Response(jsonify({"error": "Circuit Breaker is open, not making request"}), status=503), True
+    except requests.exceptions.RequestException as e:
+        app.logger.error(f"Failed to forward request to {url}. Error: {e}")
+        # Assume a reroute in case of network issues
+        return Response(jsonify({"error": "Network error"}), status=500), True
 
 
 def handle_cache_operations(service, path, req, res):

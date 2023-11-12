@@ -3,3 +3,4 @@ redis~=5.0.1
 flask~=3.0.0
 flask-limiter~=3.0.0
 pybreaker~=1.0.2
+prometheus-client==0.18.0

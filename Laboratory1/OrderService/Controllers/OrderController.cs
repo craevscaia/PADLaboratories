@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using OrderService.Entities;
+using OrderService.Metric;
 using OrderService.Services;
 
 namespace OrderService.Controllers;
@@ -18,12 +19,16 @@ public class OrderController : ControllerBase
     [HttpGet]
     public ActionResult<IEnumerable<Order>> Get()
     {
+        MetricsRegistry.OrderGetCounter.Inc();
+
         return Ok(_orderService.GetAllOrders());
     }
 
     [HttpGet("{id}")]
     public ActionResult<Order> Get(int id)
     {
+        MetricsRegistry.OrderGetByIdCounter.Inc();
+
         var order = _orderService.GetOrderById(id);
         if (order == null) return NotFound("Not found");
         return order;
@@ -32,6 +37,8 @@ public class OrderController : ControllerBase
     [HttpPost]
     public ActionResult<Order> Post(Order order)
     {
+        MetricsRegistry.OrderPostCounter.Inc();
+
         _orderService.AddOrder(order);
         _orderService.Save();
 
@@ -41,6 +48,8 @@ public class OrderController : ControllerBase
     [HttpPut("{id}")]
     public IActionResult Put(int id, Order order)
     {
+        MetricsRegistry.OrderPutCounter.Inc();
+        
         if (id != order.Id) return BadRequest();
 
         _orderService.UpdateOrder(order);
@@ -52,6 +61,8 @@ public class OrderController : ControllerBase
     [HttpDelete("{id}")]
     public IActionResult Delete(int id)
     {
+        MetricsRegistry.OrderDeleteCounter.Inc();
+
         _orderService.DeleteOrder(id);
         _orderService.Save();
 
@@ -63,6 +74,8 @@ public class OrderController : ControllerBase
     {
         try
         {
+            MetricsRegistry.OrderProcess.Inc();
+
             await _orderService.ProcessOrder(order);
             return Ok("Order processed successfully.");
         }

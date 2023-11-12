@@ -124,6 +124,37 @@ services:
     networks:
       - lab-network
 
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+    ports:
+      - "9090:9090"
+    networks:
+      - lab-network
+    depends_on:
+      - apigateway
+      - orderservice1
+      - orderservice2
+      - bookservice1
+      - bookservice2
+
+  grafana:
+    image: grafana/grafana:latest
+    depends_on:
+      - prometheus
+    ports:
+      - "3000:3000"
+    networks:
+      - lab-network
+    volumes:
+      - grafana-data:/var/lib/grafana
+
+
 networks:
   lab-network:
     driver: bridge
@@ -131,3 +162,4 @@ networks:
 volumes:
   order-data:
   book-data:
+  grafana-data:

@@ -1,0 +1,29 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+
+  - job_name: 'servicediscovery'
+    static_configs:
+      - targets: ['servicediscovery:4000']
+
+  - job_name: 'apigateway'
+    static_configs:
+      - targets: ['apigateway:3001']
+
+  - job_name: 'orderservice1'
+    static_configs:
+      - targets: ['orderservice1:80']
+
+  - job_name: 'orderservice2'
+    static_configs:
+      - targets: ['orderservice2:80']
+
+  - job_name: 'bookservice1'
+    static_configs:
+      - targets: ['bookservice1:80']
+
+  - job_name: 'bookservice2'
+    static_configs:
+      - targets: ['bookservice2:80']

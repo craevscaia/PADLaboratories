@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using OrderService.Context;
 using OrderService.Infrastructure;
 using OrderService.Middleware;
+using Prometheus;
+
 namespace OrderService;
 
 public class Startup
@@ -41,11 +43,11 @@ public class Startup
     {
         using var scope = app.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<OrderContext>();
-        
+
         Console.WriteLine(dbContext.Database.CanConnect()
             ? "Successfully connected to the database."
             : "Unable to connect to the database.");
-        
+
         if (app.Environment.IsDevelopment())
         {
             app.UseSwagger();
@@ -56,6 +58,9 @@ public class Startup
         app.UseMiddleware<RequestTimeoutMiddleware>();
 
         app.MapHealthChecks("/health");
+        
+        app.UseHttpMetrics(); // This tracks metrics for HTTP requests
+        app.UseMetricServer(); // This tracks metrics for HTTP requests
         
         //2 requests per second
         app.UseIpRateLimiting(); // concurrency task limit

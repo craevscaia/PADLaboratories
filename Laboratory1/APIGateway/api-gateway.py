@@ -2,11 +2,11 @@ import logging
 import os
 import time
 from html import escape
-
+import hazelcast
 import pybreaker
-import redis
 import requests
 from flask import Flask, jsonify, request, Response
+# Note: Flask Limiter configuration needs adjustment for Hazelcast or another approach.
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from prometheus_client import Counter
@@ -15,70 +15,60 @@ from prometheus_client import Summary
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 
-# Choose the config based on the environment variable
+# Configuration based on environment variable
 config_mode = os.environ.get('CONFIG_MODE', 'default')
 if config_mode == 'docker':
     import gatewayConfigDocker as gatewayConfig
-
     app.logger.info("Using Docker Configuration")
 else:
     import gatewayConfigDefault as gatewayConfig
-
     app.logger.info("Using Default Configuration")
 
 # Circuit Breaker Configuration
-circuit_breaker = pybreaker.CircuitBreaker(
-    fail_max=3,  # number of failures before changing to open state
-    reset_timeout=10  # seconds after which the state should change from open to half-open
-)
+circuit_breaker = pybreaker.CircuitBreaker(fail_max=3, reset_timeout=10)
 
-# Create a metric to track time spent and requests made.
+# Metric to track time and requests
 REQUEST_TIME = Summary('request_processing_seconds', 'Time spent processing request')
-c = Counter('main_endpoint_calls', 'How many times the endpoint is called')
+c = Counter('main_endpoint_calls', 'Endpoint call count')
 
-redis_conn = redis.StrictRedis(host=gatewayConfig.REDIS_HOST, port=gatewayConfig.REDIS_PORT, db=gatewayConfig.REDIS_DB)
+# Hazelcast Client Configuration
+hazelcast_config = hazelcast.ClientConfig()
+hazelcast_config.network_config.addresses.append(f"{gatewayConfig.HAZELCAST_HOST}:{gatewayConfig.HAZELCAST_PORT}")
+hazelcast_client = hazelcast.HazelcastClient(hazelcast_config)
 
+# Service Discovery URL
 SERVICE_DISCOVERY_URL = gatewayConfig.SERVICE_DISCOVERY
-services_cache = {}  # In-memory store for service addresses
 
-# Setup Flask Limiter with Redis as the storage backend
-limiter = Limiter(
-    app=app,
-    key_func=get_remote_address,
-    default_limits=["10 per minute"],
-    storage_uri=f"redis://{gatewayConfig.REDIS_HOST}:{gatewayConfig.REDIS_PORT}/{gatewayConfig.REDIS_DB}",
-)
+# In-memory store for service addresses
+services_cache = {}
+
+# Flask Limiter configuration (Note: Needs to be adapted for Hazelcast or an alternative)
+limiter = Limiter(app, key_func=get_remote_address, default_limits=["10 per minute"])
 
 
-@REQUEST_TIME.time()
 @app.route('/health', methods=['GET'])
+@REQUEST_TIME.time()
 def status():
-    app.logger.info("Health check endpoint hit")
     return jsonify({"health": "Api gateway is up and running!"}), 200
 
-
-@REQUEST_TIME.time()
 @app.route('/cache', methods=['GET'])
+@REQUEST_TIME.time()
 def get_cache():
     cache_data = {}
-    for key in redis_conn.scan_iter():
-        value = redis_conn.get(key)
-        # Convert bytes to string if necessary
-        str_key = key.decode('utf-8') if isinstance(key, bytes) else str(key)
-        str_value = value.decode('utf-8') if isinstance(value, bytes) else str(value)
-        # Escape HTML characters
+    my_map = hazelcast_client.get_map("my-distributed-map").blocking()
+    for key, value in my_map.entry_set():
+        str_key = str(key)
+        str_value = str(value)
         escaped_key = escape(str_key)
         escaped_value = escape(str_value)
         cache_data[escaped_key] = escaped_value
     return jsonify(cache_data)
 
-
-@REQUEST_TIME.time()
 @app.route('/clear-cache', methods=['POST'])
+@REQUEST_TIME.time()
 def clear_cache():
-    app.logger.info("Clearing the cache")
-    redis_conn.flushdb()
-    app.logger.info("Cache cleared successfully")
+    my_map = hazelcast_client.get_map("my-distributed-map").blocking()
+    my_map.clear()
     return jsonify({"status": "Cache cleared successfully"}), 200
 
 
@@ -230,14 +220,16 @@ def forward_request(url, req):
 
 def handle_cache_operations(service, path, req, res):
     cache_expiration_time = 300  # 5 minutes, can be set based on your needs
+    cache_key = f"{req.method}_{service}_{path}_response" if path else f"{req.method}_{service}_response"
+    my_map = hazelcast_client.get_map("my-distributed-map").blocking()
 
     if req.method in ["POST", "PUT", "DELETE"]:
-        cache_key = f"{service}_{path}_response" if path else f"{service}_response"
-        redis_conn.delete(cache_key)  # Clear only the response cache
+        # Clear only the response cache
+        my_map.delete(cache_key)
 
     if req.method == "GET":
-        cache_key = f"{req.method}_{service}_{path}_response" if path else f"{req.method}_{service}_response"
-        redis_conn.setex(cache_key, cache_expiration_time, res.content)  # Set cache with expiration time
+        # Set cache with expiration time
+        my_map.set_with_ttl(cache_key, res.content, cache_expiration_time)
 
 
 if __name__ == '__main__':

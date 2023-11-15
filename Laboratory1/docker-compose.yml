@@ -1,11 +1,11 @@
 ﻿version: '3.8'
 
 services:
-  redis:
-    image: redis:latest
-    container_name: "redis"
+  hazelcast:
+    image: hazelcast/hazelcast:latest
+    container_name: "hazelcast"
     ports:
-      - "6379:6379"
+      - "5701:5701"
     networks:
       - lab-network
 
@@ -18,7 +18,7 @@ services:
     networks:
       - lab-network
     depends_on:
-      - redis
+      - hazelcast
     environment:
       - CONFIG_MODE=docker
 
@@ -32,7 +32,7 @@ services:
       - lab-network
     depends_on:
       - servicediscovery
-      - redis
+      - hazelcast
     environment:
       - CONFIG_MODE=docker
 

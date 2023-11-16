@@ -43,21 +43,38 @@ it would trip the circuit, preventing further reroutes and giving the system tim
 4. Health Checks - implement monitoring tools to keep track of the application’s health and performance.
 5. Set up alerts to notify when something goes wrong, or the response time goes above a certain threshold.
 
-### ELK stack. Aggregate data from all services
+### Grafana and Prometheus stack. Aggregate data from all services
 
 Logging and monitoring are essential for maintaining the health, performance, and reliability of the applications.
 
-1. **ELK Stack:** This stands for Elasticsearch, Logstash, and Kibana. Need to configure
-   Logstash to collect logs from your services, store them in Elasticsearch, and use Kibana to visualize
-   the logs.
+1. **Grafana and Prometheus:** This is a powerful way to monitor and visualize the system's metrics.
 
-**Install Elasticsearch:** This is a search and analytics engine.
+**Grafana:** This is an open-source platform for monitoring and observability. 
+It allows to query, visualize, alert on, and understand the metrics no matter where they are stored.
 
-**Install Logstash:** This is a server-side data processing pipeline that ingests data from multiple sources
-simultaneously, transforms it, and then sends it to Elasticsearch.
 
-**Install Kibana:** This is a visualization layer that works on top of Elasticsearch.
+**Key Features:** 
 
+Dashboard Creation: Create and share dynamic dashboards that display changes in your data in real time.
+
+Data Visualization: Offers various types of charts, graphs, and alerts for data visualization.
+
+Data Sources Integration: Supports many data sources including Prometheus, InfluxDB, ElasticSearch, and more.
+
+Alerting: Set up alerts based on the data patterns or thresholds.
+
+**Prometheus:** This  is an open-source system monitoring and alerting toolkit. 
+It's particularly good at collecting and storing time-series data.
+
+**Key Features:**
+
+Time Series Data: Collects and stores data as time series, allowing for high-dimensional data models.
+
+Powerful Queries: Has a powerful query language (PromQL) for aggregating and processing data.
+
+Service Discovery: Supports various service discovery mechanisms for finding services to monitor.
+
+Built-in Alerting: Offers alerting functionalities, which can be integrated with external systems.
 
 ### Implement microservice-based 2 Phase Commits for a endpoint that create changes more than in one database
 
@@ -81,7 +98,7 @@ Consistent hashing is a distribution scheme that provides hash table functionali
 a way that the addition or removal of one slot does not significantly change
 the mapping of keys to slots.
 
-1. Use a distributed cache like Redis.
+1. Consistent Hashing with Hazelcast.
 2. Implement consistent hashing to ensure even distribution of cache keys.
 
 **What it is:** Consistent hashing is a strategy to distribute data across multiple nodes 

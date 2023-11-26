@@ -1,9 +1,9 @@
 import logging
 import os
-
-import redis
 from flask import Flask, request, jsonify
 from flask_limiter import Limiter
+
+service_registry = {}
 
 # Choose the config based on the environment variable
 config_mode = os.environ.get('CONFIG_MODE', 'default')
@@ -20,7 +20,6 @@ logging.basicConfig(level=logging.INFO)
 
 # Flask application.
 app = Flask(__name__)
-redis_conn = redis.StrictRedis(host=serviceConfig.REDIS_HOST, port=serviceConfig.REDIS_PORT, db=serviceConfig.REDIS_DB)
 
 
 def get_remote_address():
@@ -28,12 +27,13 @@ def get_remote_address():
 
 
 # Set up rate limiting
+# Remove the storage_uri parameter
 limiter = Limiter(
     app=app,
     key_func=get_remote_address,
-    default_limits=["200 per day", "50 per hour"],
-    storage_uri=serviceConfig.REDIS_URL
+    default_limits=["200 per day", "50 per hour"]
 )
+
 limiter.init_app(app)
 
 # In-memory store for simple load balancing
@@ -47,26 +47,32 @@ def register_service():
     name = data.get('name')
     url = data.get('url')
 
-    if not redis_conn.get(name):
+    if name not in service_registry:
         logging.info(f"New service {name} registered with url {url}")
     else:
         logging.info(f"Service {name} updated with new url {url}")
 
-    redis_conn.set(name, url)
+    service_registry[name] = url
     return jsonify({"message": "Registered successfully"}), 200
 
 
+@app.route('/discover', methods=['GET'])
 @app.route('/discover/<service>', methods=['GET'])
 @limiter.limit("10 per second")
-def discover_service(service):
-    address = redis_conn.get(service)
-    if address:
-        address = address.decode('utf-8')  # Decode the byte data to string
-        logging.info(f"Service {service} discovered. Directing to address {address}")
-        return jsonify({"service_address": address}), 200
+def discover_service(service=None):
+    if service:
+        # If a specific service is requested, return its address
+        address = service_registry.get(service)
+        if address:
+            logging.info(f"Service {service} discovered. Directing to address {address}")
+            return jsonify({"service_address": address}), 200
+        else:
+            logging.warning(f"Service {service} not found")
+            return jsonify({"error": f"Service {service} not found"}), 404
     else:
-        logging.warning(f"Service {service} not found")
-        return jsonify({"error": f"Service {service} not found"}), 404
+        # If no specific service is requested, return all services
+        logging.info("Returning all registered services")
+        return jsonify(service_registry), 200
 
 
 @app.route('/health', methods=['GET'])

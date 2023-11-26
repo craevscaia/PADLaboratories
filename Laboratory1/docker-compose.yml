@@ -50,6 +50,7 @@ services:
       - orderdb
     environment:
       - ASPNETCORE_ENVIRONMENT=Deploy
+      - SERVICE_NAME=orderservice
 
   bookservice:
     build:
@@ -64,6 +65,7 @@ services:
       - bookdb
     environment:
       - ASPNETCORE_ENVIRONMENT=Deploy
+      - SERVICE_NAME=bookservice
 
   orderdb:
     image: postgres:latest

@@ -1,11 +1,35 @@
 ﻿version: '3.8'
 
 services:
-  redis:
-    image: redis:latest
-    container_name: "redis"
+  redis-node1:
+    image: "redis:latest"
+    container_name: "redis-node1"
+    user: "redis"
+    command: redis-server --appendonly yes --cluster-enabled yes --cluster-config-file /usr/local/etc/redis/nodes.conf --cluster-node-timeout 5000 --port 6379
     ports:
       - "6379:6379"
+    volumes:
+      - ./redis-data/node1:/usr/local/etc/redis
+    networks:
+      - lab-network
+
+  redis-node2:
+    image: "redis:latest"
+    container_name: "redis-node2"
+    user: "redis"
+    command: redis-server --appendonly yes --cluster-enabled yes --cluster-config-file /usr/local/etc/redis/nodes.conf --cluster-node-timeout 5000 --port 6379
+    volumes:
+      - ./redis-data/node2:/usr/local/etc/redis
+    networks:
+      - lab-network
+
+  redis-node3:
+    image: "redis:latest"
+    container_name: "redis-node3"
+    user: "redis"
+    command: redis-server --appendonly yes --cluster-enabled yes --cluster-config-file /usr/local/etc/redis/nodes.conf --cluster-node-timeout 5000 --port 6379
+    volumes:
+      - ./redis-data/node3:/usr/local/etc/redis
     networks:
       - lab-network
 
@@ -18,7 +42,9 @@ services:
     networks:
       - lab-network
     depends_on:
-      - redis
+      - redis-node1
+      - redis-node2
+      - redis-node3
     environment:
       - CONFIG_MODE=docker
 
@@ -32,7 +58,9 @@ services:
       - lab-network
     depends_on:
       - servicediscovery
-      - redis
+      - redis-node1
+      - redis-node2
+      - redis-node3
     environment:
       - CONFIG_MODE=docker
 

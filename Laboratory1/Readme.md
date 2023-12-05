@@ -103,3 +103,16 @@ operation of the application containers across clusters of hosts.
 
 API documentation:
 https://documenter.getpostman.com/view/23334469/2s9YRE1Wek
+
+
+New-Item -ItemType Directory -Force -Path .\redis-data\node1
+New-Item -ItemType Directory -Force -Path .\redis-data\node2
+New-Item -ItemType Directory -Force -Path .\redis-data\node3
+
+New-Item -ItemType File -Force -Path .\redis-data\node1\nodes.conf
+New-Item -ItemType File -Force -Path .\redis-data\node2\nodes.conf
+New-Item -ItemType File -Force -Path .\redis-data\node3\nodes.conf
+
+icacls .\redis-data\node1\nodes.conf /grant Everyone:F
+icacls .\redis-data\node2\nodes.conf /grant Everyone:F
+icacls .\redis-data\node3\nodes.conf /grant Everyone:F

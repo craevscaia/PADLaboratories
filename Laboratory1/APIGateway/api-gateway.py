@@ -2,12 +2,13 @@ import logging
 import os
 import time
 import requests
-import redis
 from flask import Flask, jsonify, request, Response
 from flask_limiter.util import get_remote_address
 from flask_limiter import Limiter
 import pybreaker
-from hashring import HashRing
+from rediscluster import RedisCluster
+
+app = Flask(__name__)
 
 # Circuit Breaker Configuration
 circuit_breaker = pybreaker.CircuitBreaker(
@@ -28,24 +29,12 @@ else:
 
 logging.basicConfig(level=logging.INFO)
 
-app = Flask(__name__)
-
-
-def initialize_redis_clients(nodes):
-    clients = {}
-    for node in nodes:
-        host, port = node.split(':')
-        clients[node] = redis.StrictRedis(host=host, port=int(port), db=0)
-        logging.info(f"Host: {host}, port: {port} Node: {node}")
-    return clients
-
-
-# Example nodes, replace with your actual Redis nodes
-redis_nodes = ['redis:6379']
-redis_clients = initialize_redis_clients(redis_nodes)
-redis_ring = HashRing(redis_nodes)
-logging.info(f"Redis ring: {redis_ring}")
-
+startup_nodes = [
+    {"host": "redis-node1", "port": "6379"},
+    {"host": "redis-node2", "port": "6379"},
+    {"host": "redis-node3", "port": "6379"},
+]
+redis_cluster = RedisCluster(startup_nodes=startup_nodes, decode_responses=True)
 
 SERVICE_DISCOVERY_URL = gatewayConfig.SERVICE_DISCOVERY
 services_cache = {}  # In-memory store for service addresses
@@ -97,15 +86,13 @@ def proxy(service, path=''):
         if not service_address:
             logging.warning(f"Service address not found in service discovery for service: {service}")
             return jsonify({"error": f"Service {service} not found"}), 404
-        services_cache[service] = service_address  # Store in in-memory dictionary
+        services_cache[service] = service_address
         logging.info(f"Service address for {service} found in service discovery: {service_address}")
 
     # Check for cached response
     cache_key = f"{service}_{path}_response" if path else f"{service}_response"
     logging.info(f"Checking cache for key: {cache_key}")
-    node = redis_ring.get_node(cache_key)
-    client = redis_clients[node]
-    cached_response = client.get(cache_key)
+    cached_response = redis_cluster.get(cache_key)
     if cached_response:
         logging.info(f"Cache hit for key: {cache_key}")
         return Response(cached_response, mimetype='application/json'), 200
@@ -181,24 +168,20 @@ def forward_request(url, req):
 
 
 def handle_cache_operations(service, path, req, res):
-    cache_expiration_time = 300  # 5 minutes, can be set based on your needs
+    cache_expiration_time = 300  # 5 minutes, configurable
     cache_key = f"{service}_{path}_response" if path else f"{service}_response"
 
     try:
         if req.method in ["POST", "PUT", "DELETE"]:
-            node = redis_ring.get_node(cache_key)
-            client = redis_clients[node]
-            logging.info(f"Attempting to delete cache for key: {cache_key} on node: {node}")
-            client.delete(cache_key)  # Clear only the response cache
+            logging.info(f"Invalidating cache for key: {cache_key}")
+            redis_cluster.delete(cache_key)  # Invalidate cache for write operations
 
-        if req.method == "GET":
-            node = redis_ring.get_node(cache_key)
-            client = redis_clients[node]
-            logging.info(f"Attempting to set cache for key: {cache_key} on node: {node} with expiration: {cache_expiration_time}")
-            client.setex(cache_key, cache_expiration_time, res.content)  # Set cache with expiration time
+        elif req.method == "GET":
+            logging.info(f"Setting cache for key: {cache_key}")
+            redis_cluster.setex(cache_key, cache_expiration_time, res.content)  # Set cache for read operations
 
-    except Exception as e:
-        logging.error(f"Error during cache operation: {e}")
+    except RedisError as e:
+        logging.error(f"Redis operation failed. Error: {e}")
 
 
 @app.route('/health', methods=['GET'])
@@ -208,12 +191,17 @@ def status():
 
 @app.route('/clear-cache', methods=['POST'])
 def clear_cache():
-    for client in redis_clients.values():
-        client.flushdb()
-    return jsonify({"status": "Cache cleared successfully"}), 200
+    try:
+        # Clear all keys in all cluster nodes
+        for key in redis_cluster.keys("*"):
+            redis_cluster.delete(key)
+        return jsonify({"status": "Cache cleared successfully"}), 200
+    except RedisError as e:
+        logging.error(f"Failed to clear cache. Error: {e}")
+        return jsonify({"error": "Failed to clear cache"}), 500
 
 
 if __name__ == '__main__':
     check_service_discovery_health()
     logging.info(f"Starting API Gateway on port {gatewayConfig.FLASK_PORT}")
-    app.run(host=gatewayConfig.FLASK_HOST, port=gatewayConfig.FLASK_PORT, debug=True)
+    app.run(host='0.0.0.0', port=5000)

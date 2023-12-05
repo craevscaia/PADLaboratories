@@ -3,10 +3,11 @@ import os
 import time
 import requests
 from flask import Flask, jsonify, request, Response
-from flask_limiter.util import get_remote_address
-from flask_limiter import Limiter
 import pybreaker
+from redis.exceptions import RedisError
 from rediscluster import RedisCluster
+
+# from rediscluster import RedisCluster
 
 app = Flask(__name__)
 
@@ -34,25 +35,12 @@ startup_nodes = [
     {"host": "redis-node2", "port": "6379"},
     {"host": "redis-node3", "port": "6379"},
 ]
-redis_cluster = RedisCluster(startup_nodes=startup_nodes, decode_responses=True)
+redis_cluster = RedisCluster(startup_nodes=startup_nodes, decode_responses=True, skip_full_coverage_check=True)
 
 SERVICE_DISCOVERY_URL = gatewayConfig.SERVICE_DISCOVERY
 services_cache = {}  # In-memory store for service addresses
 
 logging.info(f"Initializing Flask-Limiter with storage URI: {gatewayConfig.REDIS_URL}")
-# Setup Flask Limiter with Redis as the storage backend
-limiter = Limiter(
-    app=app,
-    key_func=get_remote_address,
-    default_limits=["10 per minute"],
-    storage_uri=f"redis://{gatewayConfig.REDIS_HOST}:{gatewayConfig.REDIS_PORT}/{gatewayConfig.REDIS_DB}",
-)
-
-
-# Exemption logic (keep this as-is, as per your instructions)
-@limiter.request_filter
-def exempt_users():
-    return False
 
 
 def check_service_discovery_health():

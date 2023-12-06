@@ -1,18 +1,18 @@
 using OrderService.Entities;
-using OrderService.Helpers;
 using OrderService.Repositories;
+using OrderService.Saga;
 
 namespace OrderService.Services;
 
 public class OrderService : IOrderService
 {
     private readonly IOrderRepository _orderRepository;
-    private readonly IOrderProcessor _orderProcessor;
+    private readonly ISagaCoordinator _sagaCoordinator;
 
-    public OrderService(IOrderRepository orderRepository, IOrderProcessor orderProcessor)
+    public OrderService(IOrderRepository orderRepository, ISagaCoordinator sagaCoordinator)
     {
         _orderRepository = orderRepository;
-        _orderProcessor = orderProcessor;
+        _sagaCoordinator = sagaCoordinator;
     }
 
     public IEnumerable<Order> GetAllOrders()
@@ -47,22 +47,6 @@ public class OrderService : IOrderService
 
     public async Task ProcessOrder(Order order)
     {
-        var book = await _orderProcessor.FetchBookDetails(order.BookId);
-        if (book == null || !book.InStock)
-        {
-            throw new InvalidOperationException("Book is not available.");
-        }
-
-        order.TotalPrice = book.Price;
-
-        var isStockReduced = await _orderProcessor.ReduceBookStock(order.BookId);
-        if (!isStockReduced)
-        {
-            throw new InvalidOperationException("Failed to reduce book stock.");
-        }
-
-        // Add the order to the repository
-        AddOrder(order);
-        Save();
+        await _sagaCoordinator.PlaceOrder(order);
     }
 }

@@ -1,6 +1,7 @@
 using AspNetCoreRateLimit;
 using OrderService.Helpers;
 using OrderService.Repositories;
+using OrderService.Saga;
 using OrderService.Services;
 
 namespace OrderService.Infrastructure;
@@ -16,6 +17,7 @@ public static class DependencyRegistrar
         
         services.AddScoped<IOrderRepository, OrderRepository>();
         services.AddScoped<IOrderService, Services.OrderService>();
+        services.AddScoped<ISagaCoordinator, SagaCoordinator>();
         services.AddScoped<IOrderProcessor, OrderProcessor>();
         
         RegisterServicesForConcurrency(services, configuration);

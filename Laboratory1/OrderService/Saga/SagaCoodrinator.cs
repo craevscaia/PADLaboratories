@@ -1,6 +1,7 @@
 ﻿using OrderService.Context;
 using OrderService.Entities;
 using OrderService.Helpers;
+using OrderService.Repositories;
 using OrderService.Services;
 
 namespace OrderService.Saga;
@@ -8,14 +9,14 @@ namespace OrderService.Saga;
 public class SagaCoordinator : ISagaCoordinator
 {
     private readonly IOrderProcessor _orderProcessor;
-    private readonly IOrderService _orderService;
     private readonly OrderContext _context;
+    private readonly IOrderRepository _orderRepository;
 
-    public SagaCoordinator(IOrderProcessor orderProcessor, IOrderService orderService, OrderContext context)
+    public SagaCoordinator(IOrderProcessor orderProcessor, OrderContext context, IOrderRepository orderRepository)
     {
         _orderProcessor = orderProcessor;
-        _orderService = orderService;
         _context = context;
+        _orderRepository = orderRepository;
     }
 
     public async Task PlaceOrder(Order order)
@@ -32,8 +33,9 @@ public class SagaCoordinator : ISagaCoordinator
 
             order.TotalPrice = book.Price;
             
+            
             // Add the order to the repository
-            _orderService.AddOrder(order);
+            _orderRepository.Add(order);
             
             var isStockReduced = await _orderProcessor.ReduceBookStock(order.BookId);
             if (!isStockReduced)

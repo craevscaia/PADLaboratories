@@ -229,7 +229,7 @@ def forward_request(url, req):
 
 
 def handle_cache_operations(service, path, req, res):
-    cache_expiration_time = 300  # 5 minutes, can be set based on your needs
+    cache_expiration_time = 10  # 5 minutes, can be set based on your needs
 
     if req.method in ["POST", "PUT", "DELETE"]:
         cache_key = f"{service}_{path}_response" if path else f"{service}_response"

@@ -124,7 +124,7 @@ def proxy(service, path=''):
         return jsonify({"error": f"Service {service} not found"}), 404
 
     # Initialize reroute count
-    reroute_count = 0
+    reroute_count = 0 # Tracks how many times a request has been rerouted.
     max_reroutes = 3  # Set the maximum number of reroutes before tripping the breaker
 
     while reroute_count < max_reroutes:

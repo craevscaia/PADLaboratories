@@ -31,16 +31,17 @@ public class SagaCoordinator : ISagaCoordinator
             }
 
             order.TotalPrice = book.Price;
-
+            
+            // Add the order to the repository
+            _orderService.AddOrder(order);
+            
             var isStockReduced = await _orderProcessor.ReduceBookStock(order.BookId);
             if (!isStockReduced)
             {
                 throw new InvalidOperationException("Failed to reduce book stock.");
             }
-
-            // Add the order to the repository
-            _orderService.AddOrder(order);
-            _orderService.Save();
+            
+            await transaction.CommitAsync();
         }
         catch (Exception ex)
         {
